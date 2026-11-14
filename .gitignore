@@ -1,0 +1,7 @@
+src/impl/gwsynthesis/**
+src/impl/temp/**
+src/impl/pnr/**
+simulation/sim/**
+simulation/transcript
+*.user
+*.bak

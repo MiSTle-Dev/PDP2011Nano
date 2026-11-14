@@ -1,0 +1,105 @@
+<?xml version="1" encoding="UTF-8"?>
+<!DOCTYPE gowin-fpga-project>
+<Project>
+    <Template>FPGA</Template>
+    <Version>5</Version>
+    <Device name="GW5A-25A" pn="GW5A-LV25MG121NC1/I0">gw5a25a-002</Device>
+    <FileList>
+        <File path="../rtl/sd_card_if.sv" type="file.verilog" enable="1"/>
+        <File path="gowin_dpb/sector_dpram.v" type="file.verilog" enable="1"/>
+        <File path="hdmi/audio_clock_regeneration_packet.sv" type="file.verilog" enable="1"/>
+        <File path="hdmi/audio_info_frame.sv" type="file.verilog" enable="1"/>
+        <File path="hdmi/audio_sample_packet.sv" type="file.verilog" enable="1"/>
+        <File path="hdmi/auxiliary_video_information_info_frame.sv" type="file.verilog" enable="1"/>
+        <File path="hdmi/hdmi.sv" type="file.verilog" enable="1"/>
+        <File path="hdmi/packet_assembler.sv" type="file.verilog" enable="1"/>
+        <File path="hdmi/packet_picker.sv" type="file.verilog" enable="1"/>
+        <File path="hdmi/serializer.sv" type="file.verilog" enable="1"/>
+        <File path="hdmi/source_product_description_info_frame.sv" type="file.verilog" enable="1"/>
+        <File path="hdmi/tmds_channel.sv" type="file.verilog" enable="1"/>
+        <File path="misc/hid.v" type="file.verilog" enable="1"/>
+        <File path="misc/mcu_spi.v" type="file.verilog" enable="1"/>
+        <File path="misc/osd_u8g2.v" type="file.verilog" enable="1"/>
+        <File path="misc/sd_card.v" type="file.verilog" enable="1"/>
+        <File path="misc/sd_rw.v" type="file.verilog" enable="1"/>
+        <File path="misc/sdcmd_ctrl.v" type="file.verilog" enable="1"/>
+        <File path="misc/sysctrl.v" type="file.verilog" enable="1"/>
+        <File path="misc/video.v" type="file.verilog" enable="1"/>
+        <File path="misc/video_analyzer.v" type="file.verilog" enable="1"/>
+        <File path="misc/ws2812.v" type="file.verilog" enable="1"/>
+        <File path="tang/tp25k/pll_init.v" type="file.verilog" enable="1"/>
+        <File path="../vt52/async_reset.v" type="file.verilog" enable="1"/>
+        <File path="../vt52/char_buffer.v" type="file.verilog" enable="1"/>
+        <File path="../vt52/char_rom.v" type="file.verilog" enable="1"/>
+        <File path="../vt52/command_handler.v" type="file.verilog" enable="1"/>
+        <File path="../vt52/cursor.v" type="file.verilog" enable="1"/>
+        <File path="../vt52/cursor_blinker.v" type="file.verilog" enable="1"/>
+        <File path="../vt52/keyboard.v" type="file.verilog" enable="1"/>
+        <File path="../vt52/keymap.v" type="file.verilog" enable="1"/>
+        <File path="../vt52/keymap_rom.v" type="file.verilog" enable="1"/>
+        <File path="../vt52/simple_register.v" type="file.verilog" enable="1"/>
+        <File path="../vt52/sync_signal.v" type="file.verilog" enable="1"/>
+        <File path="../vt52/uart.v" type="file.verilog" enable="1"/>
+        <File path="../vt52/uart_rx.v" type="file.verilog" enable="1"/>
+        <File path="../vt52/uart_tx.v" type="file.verilog" enable="1"/>
+        <File path="../vt52/video_generator.v" type="file.verilog" enable="1"/>
+        <File path="../vt52/vt52.v" type="file.verilog" enable="1"/>
+        <File path="../rtl/cpu.vhd" type="file.vhdl" enable="1"/>
+        <File path="../rtl/cpuregs.vhd" type="file.vhdl" enable="1"/>
+        <File path="../rtl/cr.vhd" type="file.vhdl" enable="1"/>
+        <File path="../rtl/csdr.vhd" type="file.vhdl" enable="1"/>
+        <File path="../rtl/dr11c.vhd" type="file.vhdl" enable="1"/>
+        <File path="../rtl/fpuregs.vhd" type="file.vhdl" enable="1"/>
+        <File path="../rtl/ibv11.vhd" type="file.vhdl" enable="1"/>
+        <File path="../rtl/ibv11_ah.vhd" type="file.vhdl" enable="1"/>
+        <File path="../rtl/ibv11_c.vhd" type="file.vhdl" enable="1"/>
+        <File path="../rtl/ibv11_e2.vhd" type="file.vhdl" enable="1"/>
+        <File path="../rtl/ibv11_sh.vhd" type="file.vhdl" enable="1"/>
+        <File path="../rtl/kl11.vhd" type="file.vhdl" enable="1"/>
+        <File path="../rtl/kw11l.vhd" type="file.vhdl" enable="1"/>
+        <File path="../rtl/m9312h-minc.vhd" type="file.vhdl" enable="1"/>
+        <File path="../rtl/m9312h-odt.vhd" type="file.vhdl" enable="1"/>
+        <File path="../rtl/m9312h-pdp2011.vhd" type="file.vhdl" enable="1"/>
+        <File path="../rtl/m9312l-minc.vhd" type="file.vhdl" enable="1"/>
+        <File path="../rtl/m9312l-odt.vhd" type="file.vhdl" enable="1"/>
+        <File path="../rtl/m9312l-pdp2011.vhd" type="file.vhdl" enable="1"/>
+        <File path="../rtl/top.vhd" type="file.vhdl" enable="1"/>
+        <File path="../rtl/mmu.vhd" type="file.vhdl" enable="1"/>
+        <File path="../rtl/mncaa.vhd" type="file.vhdl" enable="1"/>
+        <File path="../rtl/mncad.vhd" type="file.vhdl" enable="1"/>
+        <File path="../rtl/mncdi.vhd" type="file.vhdl" enable="1"/>
+        <File path="../rtl/mncdo.vhd" type="file.vhdl" enable="1"/>
+        <File path="../rtl/mnckw.vhd" type="file.vhdl" enable="1"/>
+        <File path="../rtl/paneldb.vhd" type="file.vhdl" enable="1"/>
+        <File path="../rtl/paneldriver.vhd" type="file.vhdl" enable="1"/>
+        <File path="../rtl/panelos.vhd" type="file.vhdl" enable="1"/>
+        <File path="../rtl/pdp2011.vhd" type="file.vhdl" enable="1"/>
+        <File path="../rtl/ps2.vhd" type="file.vhdl" enable="1"/>
+        <File path="../rtl/rh11.vhd" type="file.vhdl" enable="1"/>
+        <File path="../rtl/rk11.vhd" type="file.vhdl" enable="1"/>
+        <File path="../rtl/rl11.vhd" type="file.vhdl" enable="1"/>
+        <File path="../rtl/sdram.vhd" type="file.vhdl" enable="1"/>
+        <File path="../rtl/sdspi.vhd" type="file.vhdl" enable="1"/>
+        <File path="../rtl/tc11.vhd" type="file.vhdl" enable="1"/>
+        <File path="../rtl/unibus.vhd" type="file.vhdl" enable="1"/>
+        <File path="../rtl/vga.vhd" type="file.vhdl" enable="1"/>
+        <File path="../rtl/vgacr.vhd" type="file.vhdl" enable="1"/>
+        <File path="../rtl/vgafont.vhd" type="file.vhdl" enable="1"/>
+        <File path="../rtl/vt.vhd" type="file.vhdl" enable="1"/>
+        <File path="../rtl/vtbr.vhd" type="file.vhdl" enable="1"/>
+        <File path="../rtl/xu.vhd" type="file.vhdl" enable="1"/>
+        <File path="../rtl/xu28m.vhd" type="file.vhdl" enable="1"/>
+        <File path="../rtl/xubf.vhd" type="file.vhdl" enable="1"/>
+        <File path="../rtl/xubg.vhd" type="file.vhdl" enable="1"/>
+        <File path="../rtl/xubl.vhd" type="file.vhdl" enable="1"/>
+        <File path="../rtl/xubm.vhd" type="file.vhdl" enable="1"/>
+        <File path="../rtl/xubr.vhd" type="file.vhdl" enable="1"/>
+        <File path="../rtl/xubs.vhd" type="file.vhdl" enable="1"/>
+        <File path="../rtl/xubw.vhd" type="file.vhdl" enable="1"/>
+        <File path="tang/tp25k/pdp11nano.vhd" type="file.vhdl" enable="1"/>
+        <File path="tang/tp25k/gowin_pll_126mhz.vhd" type="file.vhdl" enable="1"/>
+        <File path="tang/tp25k/gowin_pll_126mhz_mod.vhd" type="file.vhdl" enable="1"/>
+        <File path="tang/tp25k/pdp11nano.cst" type="file.cst" enable="1"/>
+        <File path="tang/tp25k/pdp11nano.sdc" type="file.sdc" enable="1"/>
+    </FileList>
+</Project>
