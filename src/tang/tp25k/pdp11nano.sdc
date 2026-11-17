@@ -27,17 +27,13 @@ create_generated_clock -name clk_disk_rk -source [get_pins {pll_inst/u_pll/PLLA_
 create_generated_clock -name clk_disk_rh -source [get_pins {pll_inst/u_pll/PLLA_inst/CLKOUT3}] -divide_by 4 [get_pins {pdp11_inst/pdp11/rh0/sd1/clk_s0/Q}]
 create_generated_clock -name clk_disk_rl -source [get_pins {pll_inst/u_pll/PLLA_inst/CLKOUT3}] -divide_by 4 [get_pins {pdp11_inst/pdp11/rl0/sd1/clk_s0/Q}]
 
-# TP25K ties audio_div to zero: video.clk_audio toggles on every pixel edge.
-create_generated_clock -name clk_audio -source [get_pins {pll_inst/u_pll/PLLA_inst/CLKOUT4}] -divide_by 2 [get_pins {video_inst/clk_audio_s0/Q}]
-
 # External SPI mode 1, up to 24 MHz on either connector. Propagate both
 # alternatives through the selected-clock mux; neither is related to the PLL.
+create_clock -name clk_spi_onboard -period 41.666667 -waveform {0.000000 20.833333} [get_ports {spi_sclk}]
 create_clock -name clk_spi_companion -period 41.666667 -waveform {0.000000 20.833333} [get_ports {pmod_companion_clk}]
+create_clock -name spi_io_clk -period 41.666667 -waveform {0.000000 20.833333} [get_nets {spi_io_clk}]
+set_clock_groups -asynchronous -group [get_clocks {clk_pixel}] -group [get_clocks {clk_spi_onboard clk_spi_companion spi_io_clk}]
 
-# No blanket asynchronous clock groups, reset false paths, or fabricated I/O
-# delays. SPI CDC, PLL-lock reset release, and board I/O budgets remain visible.
-# rLockOut is a one-shot boot-button sampling/reset event, not a periodic
-# clock; leave its auto-clock warning visible rather than inventing a rate.
 report_timing -setup -from_clock [get_clocks {clk_pixel}] -to_clock [get_clocks {clk_pixel}] -max_paths 100 -max_common_paths 1
 report_timing -setup -from_clock [all_clocks] -to_clock [all_clocks] -max_paths 100 -max_common_paths 1
 report_timing -hold -from_clock [all_clocks] -to_clock [all_clocks] -max_paths 100 -max_common_paths 1

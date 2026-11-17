@@ -17,19 +17,11 @@ module keyboard(
            usb_kbd_d <= usb_kbd;
    end
 
-   wire [15:0] ps2keycode;
-   keymap keymap (
-   .code ( usb_kbd_d[6:0] ),
-   .ps2 ( ps2keycode )
-   );
-
    // state: one hot encoding
-   // idle is the normal state, reading the ps/2 bus
-   // key up/down (long and short) are for key events
-   // keymap_read is for reading the keymap rom
+   // idle is the normal state, reading USB keyboard events
+   // key up/down are for key events
    // esc_char is for sending ESC- prefixed chars
    localparam state_idle        = 5'b00001;
-   localparam state_keymap      = 5'b00010;
    localparam state_key_down    = 5'b00100;
    localparam state_key_up      = 5'b01000;
    localparam state_esc_char    = 5'b10000;
@@ -41,11 +33,7 @@ module keyboard(
    localparam keycode_escaped = 2'b11;
 
    reg [4:0] state;
-   reg [7:0]  ps2_byte;
-   // we are processing a break_code (key up)
-   reg ps2_break_keycode;
-   // we are processing a long keycode (two bytes)
-   reg ps2_long_keycode;
+   reg [6:0] usb_keycode;
    // shift, control & meta key status, bit order:
    // lshift, lcontrol, lmeta, rmeta, rcontrol, rshift
    // alt/meta key status, vt52 doesn't have meta, but I want to use
@@ -62,11 +50,9 @@ module keyboard(
    // special char to send after ESC
    reg [7:0] special_data;
 
-   // ps2_byte is the actual keycode, we use long/short keycode, caps lock &
-   // shift to determine the plane we need
-   assign keymap_address = { ps2_long_keycode, caps_lock_active, shift_pressed, ps2_byte };
+   // The USB HID usage is zero-extended to the keymap's 8-bit key field.
+   assign keymap_address = { 1'b0, caps_lock_active, shift_pressed, 1'b0, usb_keycode };
 
-   // address is 3 bits for longkeycode/capslock/shift + 8 bits for keycode
    // data is on of
    // 0xxxxxxx: regular ASCII key
    // 10xxxxxx: control/meta/shift or caps lock, each bit is a key, all 0 for caps lock
@@ -86,10 +72,7 @@ reg old_kbd_strobe_d;
          data <= 0;
          valid <= 0;
 
-         ps2_byte <= 0;
-
-         ps2_break_keycode <= 0;
-         ps2_long_keycode <= 0;
+         usb_keycode <= 0;
 
          modifier_pressed = 6'h00;
          caps_lock_active <= 1;  // default caps lock active to get capital characters
@@ -105,25 +88,17 @@ reg old_kbd_strobe_d;
         case (state)
           state_idle: begin
             if (old_kbd_strobe != old_kbd_strobe_d) begin
-                  ps2_byte <= ps2keycode[7:0];
-                  if (ps2keycode[15:8] == 8'hE0) begin
-                     ps2_break_keycode <= 0;
-                     ps2_long_keycode <= 1;
-                  end
-                  else if ( usb_kbd_d1[7] ) begin
-                     ps2_break_keycode <= 1;
+                  usb_keycode <= usb_kbd_d[6:0];
+                  if ( usb_kbd_d1[7] ) begin
                      state <= state_key_up;
                   end
                   else begin
-                     ps2_break_keycode <= 0;
                      state <= state_key_down;
                   end
              end
           end
           state_key_up: begin
              // on key up we only care about released modifiers
-             ps2_break_keycode <= 0;
-             ps2_long_keycode <= 0;
              state <= state_idle;
              if (keymap_data[7:6] == keycode_modifier) begin
                 // the released modifier is in keymap_data[5:0]
@@ -132,7 +107,6 @@ reg old_kbd_strobe_d;
              end
           end
           state_key_down: begin
-             ps2_long_keycode <= 0;
              if (keymap_data == 0) begin
                 // unrecognized key, just go back to idle
                 state <= state_idle;
@@ -183,7 +157,7 @@ reg old_kbd_strobe_d;
                   end
                 endcase
              end // else: !if(keymap_data == 0)
-          end // case: state_keymap_down
+          end // case: state_key_down
           state_esc_char: begin
              // only send special char after ESC was successfully sent
              if (valid == 0) begin
@@ -196,7 +170,7 @@ reg old_kbd_strobe_d;
                 valid <= 1;
              end
           end
-        endcase // case (state)
+            endcase // case (state)
       end // else: !if(valid)
    end // always @ (posedge clk)
 endmodule

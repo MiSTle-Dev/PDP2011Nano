@@ -37,22 +37,9 @@ module video (
 	      output [2:0] tmds_d_p  
 	      );
    
-/* -------------------- HDMI video and audio -------------------- */
+/* -------------------- HDMI video (no audio) -------------------- */
 
-// generate 48khz audio clock
-reg clk_audio;
-reg [8:0] aclk_cnt;
 reg vresetD;
-
-always @(posedge clk) begin
-    // divisor = pixel clock / 48000 / 2 - 1
-    if(aclk_cnt < audio_div)
-        aclk_cnt <= aclk_cnt + 9'd1;
-    else begin
-        aclk_cnt <= 9'd0;
-        clk_audio <= ~clk_audio;
-    end
-end
 
 wire vreset;
 wire [1:0] vmode;
@@ -96,31 +83,8 @@ osd_u8g2 osd_u8g2 (
 wire [2:0] tmds;
 wire tmds_clock;
 
-// Audio c64 core specific
-reg [15:0] alo,aro;
-always @(posedge clk) begin
-	reg [16:0] alm,arm;
-
-	arm <= {audio_r[17],audio_r[17:2]};
-	alm <= {audio_l[17],audio_l[17:2]};
-	alo <= ^alm[16:15] ? {alm[16], {15{alm[15]}}} : alm[15:0];
-	aro <= ^arm[16:15] ? {arm[16], {15{arm[15]}}} : arm[15:0];
-end
-
-// scale audio for valume by signed division
-wire [15:0] audio_vol_l = 
-    (system_volume == 2'd0)?16'd0:
-    (system_volume == 2'd1)?{ {2{alo[15]}}, alo[15:2] }:
-    (system_volume == 2'd2)?{ alo[15], alo[15:1] }:
-    alo;
-
-wire [15:0] audio_vol_r = 
-    (system_volume == 2'd0)?16'd0:
-    (system_volume == 2'd1)?{ {2{aro[15]}}, aro[15:2] }:
-    (system_volume == 2'd2)?{ aro[15], aro[15:1] }:
-    aro;
-
 hdmi #(
+   .AUDIO_ENABLE(0),
    .AUDIO_RATE(48000), 
    .AUDIO_BIT_WIDTH(16),
    .VENDOR_NAME( { "MiSTle", 16'd0} ),
@@ -128,8 +92,8 @@ hdmi #(
 ) hdmi(
   .clk_pixel_x5(clk_pixel_x5),
   .clk_pixel(clk),
-  .clk_audio(clk_audio),
-  .audio_sample_word( { audio_vol_l, audio_vol_r } ),
+  .clk_audio(1'b0),
+  .audio_sample_word( '{16'd0, 16'd0} ),
   .tmds(tmds),
   .tmds_clock(tmds_clock),
 

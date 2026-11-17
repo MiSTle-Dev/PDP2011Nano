@@ -86,7 +86,9 @@
       <fileselector label="Mount RK:" ext="dsk" index="0"/>
       <fileselector label="Mount RL:" ext="dsk" index="1"/>
       <fileselector label="Mount RH: RM/RP" ext="dsk" index="2"/>
+	<!--IS mistle_gw5a_25 tang_primer25k tang_console60k tang_console138k tang_mega138kpro tang_mega60k -->
       <fileselector label="Mount TU:" ext="tap" index="3"/>
+	<!--END-->
       <list label="RH Type:" id=")" default="6">
 	<listentry label="RM06" value="1"/>
 	<listentry label="RP2G" value="2"/>

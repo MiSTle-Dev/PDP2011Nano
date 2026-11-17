@@ -21,7 +21,7 @@ module char_buffer
 
    initial begin
       //$readmemh("mem/test.hex", mem) ;
-      $readmemh("vt52/empty.hex", mem) ;
+      $readmemh("empty.hex", mem) ;
    end
 
    always @(posedge clk) begin

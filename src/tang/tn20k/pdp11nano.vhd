@@ -72,6 +72,8 @@ signal pll_lock       : std_logic;
 signal spi_io_din     : std_logic;
 signal spi_io_ss      : std_logic;
 signal spi_io_clk     : std_logic;
+attribute syn_keep    : integer;
+attribute syn_keep of spi_io_clk : signal is 1;
 signal spi_io_dout    : std_logic;
 signal int_out_n      : std_logic;
 signal mcu_data_out   : std_logic_vector(7 downto 0);
@@ -81,7 +83,7 @@ signal sys_data_out   : std_logic_vector(7 downto 0);
 signal sdc_data_out   : std_logic_vector(7 downto 0);
 signal hid_int        : std_logic;
 signal usb_kbd        : std_logic_vector(7 downto 0);
-signal int_ack        : std_logic_vector(7 downto 0);
+signal int_ack        : std_logic_vector(7 downto 0) := X"00";
 signal mcu_sys_strobe : std_logic;
 signal mcu_hid_strobe : std_logic;
 signal mcu_osd_strobe : std_logic;
@@ -195,7 +197,7 @@ begin
   uart_rx_int <= uart_rx when spi_ext = '1' else '1';
 
   leds_n(5 downto 0) <= not leds(5 downto 0);
-  leds(3 downto 0) <= rh_sddebug;
+  leds(3 downto 0) <= x"0"; --rh_sddebug;
   leds(5 downto 4) <= "00";
 
 pll_inst: entity work.Gowin_rPLL_126mhz
@@ -250,8 +252,8 @@ led_ws2812: entity work.ws2812
   port map
   (
    clk    => clk_pixel,
-   color  => ws2812_color,
-   data   => ws2812
+   color  => ws2812_color
+--   data   => ws2812
   );
 
 mcu_spi_inst: entity work.mcu_spi 
@@ -288,27 +290,9 @@ hid_inst: entity work.hid
   data_in         => mcu_data_out,
   data_out        => hid_data_out,
 
-  -- input local db9 port events to be sent to MCU
-  db9_port        => 6x"00",
-  irq             => hid_int,
-  iack            => int_ack(1),
-
   -- output HID data received from USB
   usb_kbd         => usb_kbd,
-  kbd_strobe      => kbd_strobe,
-  joystick0       => open,
-  joystick1       => open,
-  mouse_btns      => open,
-  mouse_x         => open,
-  mouse_y         => open,
-  mouse_strobe    => open,
-  joystick0ax     => open,
-  joystick0ay     => open,
-  joystick1ax     => open,
-  joystick1ay     => open,
-  joystick_strobe => open,
-  extra_button0   => open,
-  extra_button1   => open
+  kbd_strobe      => kbd_strobe
   );
 
 module_inst: entity work.sysctrl 
@@ -341,7 +325,7 @@ module_inst: entity work.sysctrl
   port_in_data        => open,
 
   int_out_n           => int_out_n,
-  int_in              => unsigned'(x"0" & sdc_int & '0' & hid_int & '0'),
+  int_in              => unsigned'(x"0" & sdc_int & '0' & '0' & '0'),
   int_ack             => int_ack,
 
   buttons             => unsigned'(user & reset),
@@ -390,8 +374,7 @@ sdc_iack <= int_ack(3);
 sd_card_inst: entity work.sd_card
    generic map (
     CLK_DIV  => 0,
-    SIMULATE => 0,
-    IMAGE_FIFO_BITS => 9
+    SIMULATE => 0
    )
     port map (
     rstn            => pll_lock,
@@ -417,13 +400,6 @@ sd_card_inst: entity work.sd_card
     image_size(31 downto 0)      => sd_img_size, -- length of image file
     image_mounted   => sd_img_mounted,
 
-    rom_image_selection_strobe => open,
-    rom_image_selected => open,
-    rom_image_accepted => '0',
-    rom_image_data_available => open,
-    rom_image_data => open,
-    rom_image_data_strobe => '0',
-
     -- user read sector command interface (sync with clk)
     rstart          => sd_rd,
     wstart          => sd_wr, 
@@ -441,7 +417,7 @@ sd_card_inst: entity work.sd_card
 );
 
 process(clk_pixel)
-    variable candidate : integer range 0 to 3;
+    variable candidate : integer range 0 to 2;
 begin
     if rising_edge(clk_pixel) then
         if pll_lock = '0' or sys_reset = '1' then
@@ -461,11 +437,11 @@ begin
             case disk_state is
                 when disk_idle =>
                     if sys_reset = '0' then
-                        for offset in 0 to 3 loop
-                            candidate := (disk_next + offset) mod 4;
+                        for offset in 0 to 2 loop 
+                            candidate := (disk_next + offset) mod 3;
                             if disk_rd(candidate) = '1' or disk_wr(candidate) = '1' then
                                 disk_owner <= candidate;
-                                disk_next <= (candidate + 1) mod 4;
+                                disk_next <= (candidate + 1) mod 3;
                                 disk_request_write <= disk_wr(candidate);
                                 sd_lba <= disk_sector(candidate);
                                 disk_state <= disk_pending;
@@ -569,9 +545,9 @@ have_rl <= 1 when vsd_sel_rl = '1' else 0;
 have_rh <= 1 when vsd_sel_rh = '1' else 0; 
 have_tc <= 1 when vsd_sel_tc = '1' else 0; 
 
-disk_present <= vsd_sel_tc & vsd_sel_rh & vsd_sel_rl & vsd_sel_rk;
+disk_present <= vsd_sel_tc & vsd_sel_rh & vsd_sel_rl & vsd_sel_rk; -- include TC11 slot as well
 
-disk_interfaces: for i in 0 to 3 generate
+disk_interfaces: for i in 0 to 2 generate -- 3 for TC11
 sd_card_inst: entity work.sd_card_if
 generic map (
       WIDE => '0'
@@ -600,6 +576,13 @@ port map (
 );
 end generate;
 
+-- Slot 3 (TC11) has no sd_card_if in this build: tie off, MISO idle high
+disk_sector(3)  <= (others => '0');
+disk_wr_data(3) <= (others => '0');
+disk_rd(3)      <= '0';
+disk_wr(3)      <= '0';
+disk_miso(3)    <= '1';
+
 modelcode <= 20 when system_cpu = "000" else
              34 when system_cpu = "001" else
              44 when system_cpu = "010" else
@@ -618,7 +601,7 @@ rh_type <= 1 when system_rh_type = "001" else
 
 pdp11_inst: entity work.top
   generic map (
-    ttype => false, -- false for VT100/105, True for VT52 terminal
+    ttype => true, -- false for VT100/105, True for VT52 terminal
     sdram_data_width => 32
   )
   port map (
@@ -630,10 +613,10 @@ pdp11_inst: entity work.top
     modelcode      => modelcode,
     serial_console => system_console,
     have_rk        => have_rk,
-    have_rl        => 0, --have_rl,
-    have_rh        => 0, --have_rh,
-    have_tc        => 0, --have_tc,
-    have_xu        => 0,
+    have_rl        => have_rl,
+    have_rh        => have_rh,
+--    have_tc        => 0, --have_tc,
+--    have_xu        => 0,
     rx1            => uart_rx_int, --USB-C BL616 UART PiPico / M0S Dock
     tx1            => uart_tx, --USB-C BL616 UART PiPico / M0S Dock
     rts1           => open,
@@ -662,16 +645,16 @@ pdp11_inst: entity work.top
     rh_sdcard_debug => rh_sddebug,
     rh_type        => rh_type,
 
-    tc_sdcard_cs   => disk_cs(3),
-    tc_sdcard_mosi => disk_mosi(3),
-    tc_sdcard_sclk => disk_sclk(3),
-    tc_sdcard_miso => disk_miso(3),
-    tc_sdcard_debug => tc_sddebug,
+--    tc_sdcard_cs   => disk_cs(3),
+--    tc_sdcard_mosi => disk_mosi(3),
+--    tc_sdcard_sclk => disk_sclk(3),
+--    tc_sdcard_miso => disk_miso(3),
+--    tc_sdcard_debug => tc_sddebug,
 
-    xu_cs          => open,
-    xu_mosi        => open,
-    xu_sclk        => open,
-    xu_miso        => '1',
+--    xu_cs          => open,
+--    xu_mosi        => open,
+--    xu_sclk        => open,
+--    xu_miso        => '1',
 
     dram_addr      => O_sdram_addr,
     dram_dq        => IO_sdram_dq,

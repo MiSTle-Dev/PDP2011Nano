@@ -26,6 +26,9 @@ module hdmi
     // Defaults to 16-bit audio, the minmimum supported by HDMI sinks. Can be anywhere from 16-bit to 24-bit.
     parameter int AUDIO_BIT_WIDTH = 16,
 
+    // Set to 0 for video-only operation; removes the audio datapath and audio packets to save logic.
+    parameter bit AUDIO_ENABLE = 1'b1,
+
     // Some HDMI sinks will show the source product description below to users (i.e. in a list of inputs instead of HDMI 1, HDMI 2, etc.).
     // If you care about this, change it below.
     parameter bit [8*8-1:0] VENDOR_NAME = {"Unknown", 8'd0}, // Must be 8 bytes null-padded 7-bit ASCII
@@ -235,6 +238,7 @@ generate
             .IT_CONTENT(IT_CONTENT),
             .AUDIO_RATE(AUDIO_RATE),
             .AUDIO_BIT_WIDTH(AUDIO_BIT_WIDTH),
+            .AUDIO_ENABLE(AUDIO_ENABLE),
             .VENDOR_NAME(VENDOR_NAME),
             .PRODUCT_DESCRIPTION(PRODUCT_DESCRIPTION),
             .SOURCE_DEVICE_INFORMATION(SOURCE_DEVICE_INFORMATION)

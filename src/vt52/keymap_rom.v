@@ -24,7 +24,7 @@ module keymap_rom
       // XXX yosys doesn't like this, it overrides the readmemh
       // so for now just assume that all other positions have zeros...
       // for (i = 0; i < 2047; i = i + 1) mem[i] = "b";
-      $readmemh("vt52/keymap2.hex", mem) ;
+      $readmemh("keymap2.hex", mem) ;
    end
 
    always @(posedge clk) begin

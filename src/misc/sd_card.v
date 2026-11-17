@@ -14,20 +14,11 @@
 //
 //  This takes two optional global defines:
 //  - NO_COMPANION, disables the FPGA Companion interface entirely
-//  - DISABLE_ROM_IMAGE disables the ROM image download interface
-//       to save some logic if unused. This is implied by NO_COMPANION
 //  - IMAGE_INDEX, index of an (optional) image to be used for direct
 //       SD card access without companion (NO_COMPANION set)
 //  - IMAGE_SIZE, size in bytes of an (optional) image to be used for direct
 //       SD card access without companion (NO_COMPANION set)
 //
-
-// without companion interface the rom interface is also disabled
-`ifdef NO_COMPANION
- `ifndef DISABLE_ROM_IMAGE
-  `define DISABLE_ROM_IMAGE
- `endif
-`endif
 
 `ifdef IMAGE_INDEX
  `ifndef IMAGE_SIZE
@@ -43,8 +34,7 @@ $error("sd_card.v: Error, IMAGE_SIZE given without IMAGE_INDEX")
   
 module sd_card # (
     parameter [2:0]	CLK_DIV = 3'd2,
-    parameter		SIMULATE = 0,
-	parameter		IMAGE_FIFO_BITS = 1
+    parameter		SIMULATE = 0
 ) (
     // rstn active-low, 1:working, 0:reset
     input			  rstn,
@@ -72,20 +62,10 @@ module sd_card # (
 `endif
    
     // export sd image size   
-    output reg [63:0] image_size,
+    output reg [31:0] image_size,
     // up to eight drive images supported
     output reg [7:0]  image_mounted,
 
-`ifndef DISABLE_ROM_IMAGE
-    // up to eight rom images supported
-	output reg		  rom_image_selection_strobe,
-    output reg [2:0]  rom_image_selected,
-	input			  rom_image_accepted,
-    output			  rom_image_data_available,
-    output reg [7:0]  rom_image_data,
-    input			  rom_image_data_strobe,
-`endif
-  
     // read sector command interface (sync with clk), this once was
     // directly tied to the sd card. Now this goes to the MCU via the
     // MCU interface as the MCU translates sector numbers from those
@@ -262,10 +242,6 @@ sector_dpram buffer(
 
 `ifndef NO_COMPANION   // no IRQ handling without companion
    
-`ifndef DISABLE_ROM_IMAGE
-reg	      rom_image_trigger_irq;   
-`endif
-   
 always @(posedge clk, negedge rstn) begin
    reg	  startD;   
    
@@ -288,51 +264,16 @@ always @(posedge clk, negedge rstn) begin
       if(start_any && !startD && !direct_enable)
         irq <= 1'b1;
 
-`ifndef DISABLE_ROM_IMAGE
-	  // if a rom image transfer has been accepted by the core, raise
-	  // interrupt to start transfer
-	  if(rom_image_accepted || rom_image_trigger_irq )  // initial IRQ
-        irq <= 1'b1;
-`endif	  
    end   
 end
 `endif // !`ifndef NO_COMPANION
    
-`ifndef DISABLE_ROM_IMAGE
-// register indicating whether the core has accepted a rom image
-reg [7:0] rom_image_valid;   
-
-localparam IMAGE_FIFO_SIZE = (1<<IMAGE_FIFO_BITS);
-localparam IMAGE_FIFO_LOW  = (IMAGE_FIFO_SIZE/4);
-
-reg [31:0] rom_image_length;   // total length of rom image currently being transferred
-
-// the fifo itself
-reg [7:0] rom_image_fifo [IMAGE_FIFO_SIZE];   
-reg [IMAGE_FIFO_BITS:0] rom_image_fifo_wr_ptr;
-reg [IMAGE_FIFO_BITS:0] rom_image_fifo_rd_ptr;
-reg [IMAGE_FIFO_BITS:0] rom_image_fifo_expected;
-wire	  rom_image_fifo_ptr_equal = rom_image_fifo_wr_ptr[IMAGE_FIFO_BITS-1:0] == rom_image_fifo_rd_ptr[IMAGE_FIFO_BITS-1:0];   
-wire	  rom_image_fifo_full = rom_image_fifo_ptr_equal && (rom_image_fifo_wr_ptr[IMAGE_FIFO_BITS] != rom_image_fifo_rd_ptr[IMAGE_FIFO_BITS]);
-wire	  rom_image_fifo_empty = rom_image_fifo_ptr_equal && (rom_image_fifo_wr_ptr[IMAGE_FIFO_BITS] == rom_image_fifo_rd_ptr[IMAGE_FIFO_BITS]);   
-wire [IMAGE_FIFO_BITS:0] rom_image_fifo_fill = rom_image_fifo_wr_ptr - rom_image_fifo_rd_ptr;
-wire [15:0] rom_image_fifo_avail = IMAGE_FIFO_SIZE - rom_image_fifo_fill;
-reg		rom_image_fifo_filled; 
-wire	rom_image_fifo_low = rom_image_fifo_fill < IMAGE_FIFO_SIZE/2;
-//wire	rom_image_fifo_low = rom_image_fifo_fill < 2;
-   
-// the rom_image_data_available tells the core that data may be read from the fifo
-assign rom_image_data_available = !rom_image_fifo_empty;  
-`endif
-
 `ifdef NO_COMPANION
 `ifdef IMAGE_SIZE
 // an image size may be given in NO_COMPANION mode
 reg reset_D;   
 `endif   
 `endif   
-
-reg [15:0] fifo_available;
 
 // register the rising edge of rstart and clear it once
 // it has been reported to the MCU
@@ -342,7 +283,7 @@ always @(posedge clk, negedge rstn) begin
       command <= 8'hff;
       rstart_int <= 1'b0;
       wstart_int <= 1'b0;
-      image_size <= 64'd0;
+      image_size <= 32'd0;
       image_mounted <= 8'b00000000;
       direct_start_we <= 1'b0;
       dinb_we <=1'b0;
@@ -351,19 +292,6 @@ always @(posedge clk, negedge rstn) begin
       reset_D <= 1'b1;
       image_size <= `IMAGE_SIZE;
 `endif
-`endif
-	  
-`ifndef DISABLE_ROM_IMAGE
-	  // rom image handling related values
-      rom_image_selection_strobe <= 1'b0;
-      rom_image_selected <= 3'd0;
-      rom_image_length <= 32'd0;
-	  rom_image_valid <= 8'b00000000;
-
-	  rom_image_fifo_rd_ptr <= 'd0;     // fifo is empty
-	  rom_image_fifo_wr_ptr <= 'd0;	  
-	  rom_image_fifo_expected <= 'd0;
-	  rom_image_fifo_filled <= 1'b0;	  
 `endif
 	  
 	  // no MCU or core request by now
@@ -383,38 +311,6 @@ always @(posedge clk, negedge rstn) begin
 `endif
 `endif
 
-`ifndef DISABLE_ROM_IMAGE
-	  // store core reply to the rom image selection request
-	  if(rom_image_selection_strobe) begin
-		 rom_image_valid[rom_image_selected] <= rom_image_accepted;
-		 rom_image_length <= image_size[31:0];		 
-		 rom_image_selection_strobe <= 1'b0;
-	  end
-	  
-	  // core is reading from rom image fifo
-	  rom_image_trigger_irq <= 1'b0;
-	  if(rom_image_data_strobe) begin
-		 // the fifo should actually never be empty as the core should never read
-		 // more data than data is available		 
-		 if(!rom_image_fifo_empty) begin
-			// read data from fifo
-			rom_image_fifo_rd_ptr <= rom_image_fifo_rd_ptr + 'd1;
-			rom_image_data <= rom_image_fifo[rom_image_fifo_rd_ptr[IMAGE_FIFO_BITS-1:0] + IMAGE_FIFO_BITS'('d1)];	  
-
-			// we frequently need to request further data from the companion. We do this by triggering
-			// an IRQ. The companion will then read the available buffer space and send as many bytes as
-			// buffer space is available
-
-			// check if refill has been requested and the last byte is being fetched
-			if(rom_image_fifo_low && rom_image_fifo_filled) begin
-			   $display("sd_card.v: trigger image reload at %0d", rom_image_fifo_fill);
-			   rom_image_trigger_irq <= 1'b1;
-			   rom_image_fifo_filled <= 1'b0;	  			
-			end
-		 end
-	  end
-`endif
-	  
 	  // handle MCU/core requests
 	  if(!busy_int && !done_int) begin
 		 // honour requests if SD card is idle
@@ -619,7 +515,7 @@ always @(posedge clk, negedge rstn) begin
 			   // MCU reports that some image has been inserted. If
 			   // the image size is 0, then no image is inserted
 			   if(byte_cnt == 4'd0) image_target <= data_in;
-			   if(byte_cnt == 4'd1) image_size[63:24] <= { 32'h00000000, data_in };
+			   if(byte_cnt == 4'd1) image_size[31:24] <= data_in;
 			   if(byte_cnt == 4'd2) image_size[23:16] <= data_in;
 			   if(byte_cnt == 4'd3) image_size[15:8]  <= data_in;
 			   if(byte_cnt == 4'd4) begin 
@@ -627,7 +523,7 @@ always @(posedge clk, negedge rstn) begin
 				  image_mounted[image_target] <= 1'b1;
 				  direct_start_wdata <= 32'b0;
 				  direct_start_we <= 1'b1;
-				  $display("sd_card.v: MCU inserted image %0d with %0d bytes", image_target, { image_size[63:8], data_in } );
+				  $display("sd_card.v: MCU inserted image %0d with %0d bytes", image_target, { image_size[31:8], data_in } );
 			   end
 			end
 			
@@ -672,107 +568,6 @@ always @(posedge clk, negedge rstn) begin
 			   end
 			end
 
-            // SDC CMD 7: LARGE FILE INSERTED, usually used for HDD images > 4GB
-            if(command == 8'd7) begin
-               // MCU reports that some large image has been inserted.
-               if(byte_cnt == 4'd0) image_target <= data_in;
-               // it should be ok to limit image size to 1TiB
-               if(byte_cnt == 4'd1) image_size[63:56] <= 8'h00;
-               if(byte_cnt == 4'd2) image_size[55:48] <= 8'h00;
-               if(byte_cnt == 4'd3) image_size[47:40] <= 8'h00;
-               if(byte_cnt == 4'd4) image_size[39:32] <= data_in;
-               if(byte_cnt == 4'd5) image_size[31:24] <= data_in;
-               if(byte_cnt == 4'd6) image_size[23:16] <= data_in;
-               if(byte_cnt == 4'd7) image_size[15:8]  <= data_in;
-               if(byte_cnt == 4'd8) begin
-                  image_size[7:0] <= data_in;
-                  image_mounted[image_target] <= 1'b1;
-                  direct_start_wdata <= 32'b0;
-                  direct_start_we <= 1'b1;
-                  $display("sd_card.v: MCU inserted large image %0d with %0d bytes", image_target, { image_size[63:8], data_in } );
-               end
-            end
-
-`ifndef DISABLE_ROM_IMAGE
-            // SDC CMD 8: IMAGE, used to e.g. load kickstart (unless read from flash)
-            if(command == 8'd8) begin
-               if(byte_cnt == 4'd0) sub_command <= data_in;
-			   else begin
-				  if(byte_cnt == 4'd1) image_target <= data_in;
-				  
-				  case(sub_command)
-					// FPGA Companion requests the status of the image. The core returns
-					// a status byte with bit 7 set if it's able to receive this data 
-					// (e.g. based on the size if the image previously selected). Bytes
-					// 2 and 3 report the current buffer/fifo space
-					8'h00: begin // IMAGE STATUS
-					   // TODO: Is this latch really needed? It's meant to prevent inconsitant
-					   // values to be returned to the core if the fifo changes between the
-					   // transfer of the different reply bytes
-					   
-					   // send number of bytes free in the fifo
-					   if(byte_cnt == 4'd1) begin
-						  data_out <= { rom_image_valid[data_in], 7'b0000000 };
-						  fifo_available <= rom_image_fifo_avail;
-					   end
-						  
-					   else if(byte_cnt == 4'd2) data_out <= fifo_available[15:8];
-					   else if(byte_cnt == 4'd3) data_out <= fifo_available[7:0];
-
-					   if(byte_cnt == 4'd3) begin 
-						  $display("sd_card.v: MCU requested image %0d status, avail %0d", image_target, fifo_available);
-
-						  // once the companion starts sending data, we expect it to send this much bytes. Once
-						  // that's done, we might request further data through e.g. an IRQ.
-						  rom_image_fifo_expected <= fifo_available;						  
-					   end
-					end
-
-					// FPGA Companion selects an image to be transferred
-					8'h01: begin // IMAGE SELECT
-					   if(byte_cnt == 4'd2) image_size[63:24] <= { 32'h00000000, data_in };
-					   if(byte_cnt == 4'd3) image_size[23:16] <= data_in;
-					   if(byte_cnt == 4'd4) image_size[15:8]  <= data_in;
-					   if(byte_cnt == 4'd5) begin 
-						  image_size[7:0]   <= data_in;
-						  if(image_target <= 8'd7) begin // images 0..7 are supported
-							 $display("sd_card.v: MCU selected rom image %0d with %0d bytes", image_target, { image_size[63:8], data_in } );
-							 rom_image_selected <= image_target[2:0];
-							 rom_image_selection_strobe <= 1'b1;
-						  end
-					   end
-					end
-					
-					8'h02: begin // IMAGE WRITE
-					   if(byte_cnt == 4'd1) $display("sd_card.v: MCU starts sending rom image data");
-
-					   // This could in theory overflow the fifo. This should actually never happen
-					   // unless the companion sends more bytes than it was told to.
-					   if(byte_cnt >= 4'd2) begin
-						  if(!rom_image_fifo_full) begin
-							 rom_image_fifo[rom_image_fifo_wr_ptr[IMAGE_FIFO_BITS-1:0]] <= data_in;
-							 // If the fifo is empty, then data written shows up immediately.
-							 // Also handle special case if the fifo is currently being read and would
-							 // become empty by this read. In both cases data written to the FIFO would
-							 // immediately show up on its output.
-							 if(rom_image_fifo_empty ||	(rom_image_data_strobe && rom_image_fifo_fill == 1))
-							   rom_image_data <= data_in;
-							 
-							 rom_image_fifo_wr_ptr <= rom_image_fifo_wr_ptr + 'd1;
-							 rom_image_length <= rom_image_length - 32'd1;
-							 rom_image_fifo_expected <= rom_image_fifo_expected - 'd1;
-
-							 // check if this is the last byte expected to request fifo refill
-							 // as soon as possible
-							 if(rom_image_fifo_expected == 'd1 && rom_image_length > 1)
-							   rom_image_fifo_filled <= 1'b1;
-						  end
-				       end // if (byte_cnt >= 4'd2)
-					end // case: 8'h02					
-				  endcase
-			   end
-			end // if (command == 8'd8)
-`endif   // !DISABLE_ROM_IMAGE
 			   
 			if(byte_cnt != 4'd15) byte_cnt <= byte_cnt + 4'd1;    
          end
