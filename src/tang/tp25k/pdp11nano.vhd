@@ -69,6 +69,8 @@ signal pll_lock       : std_logic;
 signal spi_io_din     : std_logic;
 signal spi_io_ss      : std_logic;
 signal spi_io_clk     : std_logic;
+attribute syn_keep    : integer;
+attribute syn_keep of spi_io_clk : signal is 1;
 signal spi_io_dout    : std_logic;
 signal int_out_n      : std_logic;
 signal mcu_data_out   : std_logic_vector(7 downto 0);
@@ -249,27 +251,9 @@ hid_inst: entity work.hid
   data_in         => mcu_data_out,
   data_out        => hid_data_out,
 
-  -- input local db9 port events to be sent to MCU
-  db9_port        => 6x"00",
-  irq             => hid_int,
-  iack            => int_ack(1),
-
   -- output HID data received from USB
   usb_kbd         => usb_kbd,
-  kbd_strobe      => kbd_strobe,
-  joystick0       => open,
-  joystick1       => open,
-  mouse_btns      => open,
-  mouse_x         => open,
-  mouse_y         => open,
-  mouse_strobe    => open,
-  joystick0ax     => open,
-  joystick0ay     => open,
-  joystick1ax     => open,
-  joystick1ay     => open,
-  joystick_strobe => open,
-  extra_button0   => open,
-  extra_button1   => open
+  kbd_strobe      => kbd_strobe
   );
 
 module_inst: entity work.sysctrl 
@@ -302,7 +286,7 @@ module_inst: entity work.sysctrl
   port_in_data        => open,
 
   int_out_n           => int_out_n,
-  int_in              => unsigned'(x"0" & sdc_int & '0' & hid_int & '0'),
+  int_in              => unsigned'(x"0" & sdc_int & '0' & '0' & '0'),
   int_ack             => int_ack,
 
   buttons             => unsigned'(user & reset),
@@ -351,8 +335,7 @@ sdc_iack <= int_ack(3);
 sd_card_inst: entity work.sd_card
    generic map (
     CLK_DIV  => 0,
-    SIMULATE => 0,
-    IMAGE_FIFO_BITS => 9
+    SIMULATE => 0
    )
     port map (
     rstn            => pll_lock,
@@ -377,13 +360,6 @@ sd_card_inst: entity work.sd_card
     -- translate between sector/track/side and lba sector
     image_size(31 downto 0)      => sd_img_size, -- length of image file
     image_mounted   => sd_img_mounted,
-
-    rom_image_selection_strobe => open,
-    rom_image_selected => open,
-    rom_image_accepted => '0',
-    rom_image_data_available => open,
-    rom_image_data => open,
-    rom_image_data_strobe => '0',
 
     -- user read sector command interface (sync with clk)
     rstart          => sd_rd,
@@ -593,8 +569,8 @@ pdp11_inst: entity work.top
     have_rk        => have_rk,
     have_rl        => have_rl,
     have_rh        => have_rh,
-    have_tc        => 0, --have_tc,
-    have_xu        => 0,
+--    have_tc        => 0, --have_tc,
+--    have_xu        => 0,
     rx1            => uart_rx,
     tx1            => uart_tx,
     rts1           => open,
@@ -623,16 +599,16 @@ pdp11_inst: entity work.top
     rh_sdcard_debug => rh_sddebug,
     rh_type        => rh_type,
 
-    tc_sdcard_cs   => disk_cs(3),
-    tc_sdcard_mosi => disk_mosi(3),
-    tc_sdcard_sclk => disk_sclk(3),
-    tc_sdcard_miso => disk_miso(3),
-    tc_sdcard_debug => tc_sddebug,
+--    tc_sdcard_cs   => disk_cs(3),
+--    tc_sdcard_mosi => disk_mosi(3),
+--    tc_sdcard_sclk => disk_sclk(3),
+--    tc_sdcard_miso => disk_miso(3),
+--    tc_sdcard_debug => tc_sddebug,
 
-    xu_cs          => open,
-    xu_mosi        => open,
-    xu_sclk        => open,
-    xu_miso        => '1',
+--    xu_cs          => open,
+--    xu_mosi        => open,
+--    xu_sclk        => open,
+--    xu_miso        => '1',
 
     dram_addr      => O_sdram_addr,
     dram_dq        => IO_sdram_dq,

@@ -25,18 +25,18 @@ create_generated_clock -name clk_sdram -source [get_pins {div_inst100/CLKOUT}] -
 # counter bit 1 (fast). Initialization uses bit 6 (clk_50 / 128), which is
 # slower, so this constraint is conservative. Clock switching needs CDC review.
 create_generated_clock -name clk_disk_rk -source [get_pins {pll_inst/rpll_inst/CLKOUTD}] -divide_by 4 [get_pins {pdp11_inst/pdp11/rk0/sd1/clk_s0/Q}]
-#create_generated_clock -name clk_disk_rh -source [get_pins {pll_inst/rpll_inst/CLKOUTD}] -divide_by 4 [get_pins {pdp11_inst/pdp11/rh0/sd1/clk_s0/Q}]
-#create_generated_clock -name clk_disk_rl -source [get_pins {pll_inst/rpll_inst/CLKOUTD}] -divide_by 4 [get_pins {pdp11_inst/pdp11/rl0/sd1/clk_s0/Q}]
+create_generated_clock -name clk_disk_rh -source [get_pins {pll_inst/rpll_inst/CLKOUTD}] -divide_by 4 [get_pins {pdp11_inst/pdp11/rh0/sd1/clk_s0/Q}]
+create_generated_clock -name clk_disk_rl -source [get_pins {pll_inst/rpll_inst/CLKOUTD}] -divide_by 4 [get_pins {pdp11_inst/pdp11/rl0/sd1/clk_s0/Q}]
 
 # TN20K ties audio_div to zero: video.clk_audio toggles on every pixel edge.
 #create_generated_clock -name clk_audio -source [get_pins {div_inst25/CLKOUT}] -divide_by 2 [get_pins {video_inst/clk_audio_s0/Q}]
 
-#create_clock -name clk_spi_onboard -period 41.666667 -waveform {0.000000 20.833333} [get_ports {spi_sclk}]
+# SPI clocks from the BL616 MCU (onboard) and the companion pmod. spi_io_clk muxes
+# between them (pdp11nano.vhd), so both port clocks propagate to the mux output.
+create_clock -name clk_spi_onboard -period 41.666667 -waveform {0.000000 20.833333} [get_ports {spi_sclk}]
 create_clock -name clk_spi_companion -period 41.666667 -waveform {0.000000 20.833333} [get_ports {pmod_companion_clk}]
-#create_generated_clock -name clk_spi_selected_onboard -source [get_ports {spi_sclk}] -master_clock clk_spi_onboard -divide_by 1 [get_pins {mcu_spi_inst/n22_s1/F}]
-#create_generated_clock -name clk_spi_selected_companion -source [get_ports {pmod_companion_clk}] -master_clock clk_spi_companion -divide_by 1 -add [get_pins {mcu_spi_inst/n22_s1/F}]
-
-set_clock_groups -asynchronous -group [get_clocks {clk_pixel}] -group [get_clocks {clk_spi_companion}]
+create_clock -name spi_io_clk -period 41.666667 -waveform {0.000000 20.833333} [get_nets {spi_io_clk}]
+set_clock_groups -asynchronous -group [get_clocks {clk_pixel}] -group [get_clocks {clk_spi_onboard clk_spi_companion spi_io_clk}]
 
 report_timing -setup -from_clock [get_clocks {clk_pixel}] -to_clock [get_clocks {clk_pixel}] -max_paths 100 -max_common_paths 1
 report_timing -setup -from_clock [all_clocks] -to_clock [all_clocks] -max_paths 100 -max_common_paths 1

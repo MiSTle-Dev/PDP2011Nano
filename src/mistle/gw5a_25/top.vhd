@@ -211,7 +211,7 @@ begin
 		rts0=> rtsrts0,
 		kl0_bps => 19200,
       kl0_force7bit => 0,
-		kl0_rtscts => 1,
+		kl0_rtscts => 0,
 
       tx1 => txtx1,
       rx1 => rxrx1,
@@ -219,7 +219,7 @@ begin
 		rts1=> rtsrts1,
 		kl1_bps => 19200,
 		kl1_force7bit => 0,
-		kl1_rtscts => 1,
+		kl1_rtscts => 0,
 		
 --      tx2 => txtx2,
 --      rx2 => rxrx2,
