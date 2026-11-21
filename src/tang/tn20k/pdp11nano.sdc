@@ -21,16 +21,6 @@ create_generated_clock -name clk_cpu_wait -source [get_pins {div_inst100/CLKOUT}
 # ODDR (clocked by sdram c0 = clk_100) D0=0, D1=1 forwards an inverted fast clock to SDRAM.
 create_generated_clock -name clk_sdram -source [get_pins {div_inst100/CLKOUT}] -divide_by 1 -invert [get_ports {O_sdram_clk}]
 
-# sdspi counts on clk_50 (clk50mhz), so its SD clock is clk_50 / 4 via
-# counter bit 1 (fast). Initialization uses bit 6 (clk_50 / 128), which is
-# slower, so this constraint is conservative. Clock switching needs CDC review.
-create_generated_clock -name clk_disk_rk -source [get_pins {pll_inst/rpll_inst/CLKOUTD}] -divide_by 4 [get_pins {pdp11_inst/pdp11/rk0/sd1/clk_s0/Q}]
-create_generated_clock -name clk_disk_rh -source [get_pins {pll_inst/rpll_inst/CLKOUTD}] -divide_by 4 [get_pins {pdp11_inst/pdp11/rh0/sd1/clk_s0/Q}]
-create_generated_clock -name clk_disk_rl -source [get_pins {pll_inst/rpll_inst/CLKOUTD}] -divide_by 4 [get_pins {pdp11_inst/pdp11/rl0/sd1/clk_s0/Q}]
-
-# TN20K ties audio_div to zero: video.clk_audio toggles on every pixel edge.
-#create_generated_clock -name clk_audio -source [get_pins {div_inst25/CLKOUT}] -divide_by 2 [get_pins {video_inst/clk_audio_s0/Q}]
-
 # SPI clocks from the BL616 MCU (onboard) and the companion pmod. spi_io_clk muxes
 # between them (pdp11nano.vhd), so both port clocks propagate to the mux output.
 create_clock -name clk_spi_onboard -period 41.666667 -waveform {0.000000 20.833333} [get_ports {spi_sclk}]

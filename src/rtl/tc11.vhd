@@ -2,6 +2,7 @@ library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.STD_LOGIC_ARITH.ALL;
 use IEEE.STD_LOGIC_UNSIGNED.ALL;
+use work.sd_bus_pkg.all;
 
 entity tc11 is
    port(
@@ -30,15 +31,13 @@ entity tc11 is
       bus_master_control_dato : out std_logic;
       bus_master_nxm : in std_logic;
 
-      sdcard_cs : out std_logic;
-      sdcard_mosi : out std_logic;
-      sdcard_sclk : out std_logic;
-      sdcard_miso : in std_logic;
+      sdcard_req : out sd_req_t;
+      sdcard_rsp : in sd_rsp_t;
+      sdcard_clk : in std_logic;
       sdcard_debug : out std_logic_vector(3 downto 0);
 
       have_tc : in integer range 0 to 1;
       reset : in std_logic;
-      clk50mhz : in std_logic;
       nclk : in std_logic;
       clk : in std_logic
    );
@@ -46,33 +45,6 @@ end tc11;
 
 architecture implementation of tc11 is
 
-component sdspi is
-   port(
-      sdcard_cs : out std_logic;
-      sdcard_mosi : out std_logic;
-      sdcard_sclk : out std_logic;
-      sdcard_miso : in std_logic := '0';
-      sdcard_debug : out std_logic_vector(3 downto 0);
-      sdcard_addr : in std_logic_vector(23 downto 0);
-      sdcard_idle : out std_logic;
-      sdcard_read_start : in std_logic;
-      sdcard_read_ack : in std_logic;
-      sdcard_read_done : out std_logic;
-      sdcard_write_start : in std_logic;
-      sdcard_write_ack : in std_logic;
-      sdcard_write_done : out std_logic;
-      sdcard_error : out std_logic;
-      sdcard_xfer_addr : in integer range 0 to 255;
-      sdcard_xfer_read : in std_logic;
-      sdcard_xfer_out : out std_logic_vector(15 downto 0);
-      sdcard_xfer_write : in std_logic;
-      sdcard_xfer_in : in std_logic_vector(15 downto 0);
-      enable : in integer range 0 to 1 := 0;
-      controller_clk : in std_logic;
-      reset : in std_logic;
-      clk50mhz : in std_logic
-   );
-end component;
 
 signal base_addr_match : std_logic;
 signal command_reg : std_logic_vector(15 downto 0) := (others => '0');
@@ -94,7 +66,6 @@ signal sdcard_read_ack : std_logic := '0';
 signal sdcard_read_done : std_logic;
 signal sdcard_error : std_logic;
 signal sdcard_xfer_addr : integer range 0 to 255 := 0;
-signal sdcard_xfer_read : std_logic := '0';
 signal sdcard_xfer_out : std_logic_vector(15 downto 0);
 
 signal dma_word_count : std_logic_vector(15 downto 0) := (others => '0');
@@ -120,11 +91,9 @@ begin
    int_vector <= ivec;
    br <= interrupt_pending and interrupt_enable;
 
-   sd1: sdspi port map(
-      sdcard_cs => sdcard_cs,
-      sdcard_mosi => sdcard_mosi,
-      sdcard_sclk => sdcard_sclk,
-      sdcard_miso => sdcard_miso,
+   sd1: entity work.sd_sector_port port map(
+      sd_req => sdcard_req,
+      sd_rsp => sdcard_rsp,
       sdcard_debug => sdcard_debug,
       sdcard_addr => sdcard_addr,
       sdcard_idle => sdcard_idle,
@@ -136,14 +105,13 @@ begin
       sdcard_write_done => open,
       sdcard_error => sdcard_error,
       sdcard_xfer_addr => sdcard_xfer_addr,
-      sdcard_xfer_read => sdcard_xfer_read,
       sdcard_xfer_out => sdcard_xfer_out,
       sdcard_xfer_write => '0',
       sdcard_xfer_in => (others => '0'),
       enable => have_tc,
       controller_clk => clk,
-      reset => reset,
-      clk50mhz => clk50mhz
+      sd_clk => sdcard_clk,
+      reset => reset
    );
 
       process(base_addr_match, bus_addr, bus_control_dati, command_reg, command_ready,
@@ -214,7 +182,6 @@ begin
          sdcard_read_start <= '0';
          sdcard_read_ack <= '0';
          sdcard_xfer_addr <= 0;
-         sdcard_xfer_read <= '0';
          dma_word_count <= (others => '0');
          dma_address <= (others => '0');
          sector_word_count <= 0;
@@ -261,7 +228,6 @@ begin
                npr <= '0';
                sdcard_read_start <= '0';
                sdcard_read_ack <= '0';
-               sdcard_xfer_read <= '0';
 
             when tape_request_sector =>
                if sdcard_idle = '1' and sdcard_read_done = '0' then
@@ -282,7 +248,6 @@ begin
             when tape_wait_grant =>
                if npg = '1' then
                   sdcard_xfer_addr <= 0;
-                  sdcard_xfer_read <= '1';
                   sector_word_count <= 0;
                   tape_state <= tape_read_first;
                end if;
@@ -322,7 +287,6 @@ begin
             when tape_ack_sector =>
                npr <= '0';
                bus_master_control_dato <= '0';
-               sdcard_xfer_read <= '0';
                sdcard_read_start <= '0';
                sdcard_read_ack <= '1';
                if sdcard_read_done = '0' then

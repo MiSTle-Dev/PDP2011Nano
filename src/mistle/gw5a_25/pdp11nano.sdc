@@ -21,14 +21,6 @@ create_generated_clock -name clk_cpu_wait -source [get_pins {pll_inst/u_pll/PLLA
 # ODDR D0=0, D1=1 forwards an inverted c0 to SDRAM.
 create_generated_clock -name clk_sdram -source [get_pins {pll_inst/u_pll/PLLA_inst/CLKOUT2}] -divide_by 1 -invert [get_ports {O_sdram_clk}]
 
-# sdspi counts on clk50mhz (clk_50). Counter bit 1 (fast) gives clk_50 / 4;
-# initialization uses bit 6, which is slower. Clock switching needs CDC review.
-create_generated_clock -name clk_disk_rk -source [get_pins {pll_inst/u_pll/PLLA_inst/CLKOUT3}] -divide_by 4 [get_pins {pdp11_inst/pdp11/rk0/sd1/clk_s0/Q}]
-create_generated_clock -name clk_disk_rh -source [get_pins {pll_inst/u_pll/PLLA_inst/CLKOUT3}] -divide_by 4 [get_pins {pdp11_inst/pdp11/rh0/sd1/clk_s0/Q}]
-create_generated_clock -name clk_disk_rl -source [get_pins {pll_inst/u_pll/PLLA_inst/CLKOUT3}] -divide_by 4 [get_pins {pdp11_inst/pdp11/rl0/sd1/clk_s0/Q}]
-
-# External SPI mode 1, up to 24 MHz on either connector. Propagate both
-# alternatives through the selected-clock mux; neither is related to the PLL.
 create_clock -name clk_spi_companion -period 41.666667 -waveform {0.000000 20.833333} [get_ports {pmod_companion_clk}]
 
 report_timing -setup -from_clock [get_clocks {clk_pixel}] -to_clock [get_clocks {clk_pixel}] -max_paths 100 -max_common_paths 1

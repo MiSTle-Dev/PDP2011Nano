@@ -19,6 +19,7 @@ use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.STD_LOGIC_ARITH.ALL;
 use IEEE.STD_LOGIC_UNSIGNED.ALL;
 
+use work.sd_bus_pkg.all;
 use work.pdp2011.have_xu_none;
 use work.pdp2011.boot_pdp2011;
 use work.pdp2011.boot_minc;
@@ -36,6 +37,7 @@ entity unibus is
       addr_match : in std_logic;                                     -- '1' if the address is recognized
       mmu_ready : out std_logic;
       lookup_clk : in std_logic;
+      sdcard_clk : in std_logic;
 
 -- debug & blinkenlights
       ifetch : out std_logic;                                        -- '1' if this cycle is an ifetch cycle
@@ -44,37 +46,29 @@ entity unibus is
 
 -- rl controller
       have_rl : in integer range 0 to 1 := 0;                        -- enable conditional compilation
-      rl_sdcard_cs : out std_logic;
-      rl_sdcard_mosi : out std_logic;
-      rl_sdcard_sclk : out std_logic;
-      rl_sdcard_miso : in std_logic := '0';
+      rl_sdcard_req : out sd_req_t;
+      rl_sdcard_rsp : in sd_rsp_t;
       rl_sdcard_debug : out std_logic_vector(3 downto 0);            -- debug/blinkenlights
 
 -- rk controller
       have_rk : in integer range 0 to 1 := 0;                        -- enable conditional compilation
       have_rk_num : in integer range 1 to 8 := 8;                    -- active number of drives on the controller; set to < 8 to save core
-      rk_sdcard_cs : out std_logic;
-      rk_sdcard_mosi : out std_logic;
-      rk_sdcard_sclk : out std_logic;
-      rk_sdcard_miso : in std_logic := '0';
+      rk_sdcard_req : out sd_req_t;
+      rk_sdcard_rsp : in sd_rsp_t;
       rk_sdcard_debug : out std_logic_vector(3 downto 0);            -- debug/blinkenlights
 
 -- rh controller
       have_rh : in integer range 0 to 1 := 0;                        -- enable conditional compilation
-      rh_sdcard_cs : out std_logic;
-      rh_sdcard_mosi : out std_logic;
-      rh_sdcard_sclk : out std_logic;
-      rh_sdcard_miso : in std_logic := '0';
+      rh_sdcard_req : out sd_req_t;
+      rh_sdcard_rsp : in sd_rsp_t;
       rh_sdcard_debug : out std_logic_vector(3 downto 0);            -- debug/blinkenlights
       rh_type : in integer range 1 to 7 := 6;                        -- 1:RM06; 2:RP2G; 3:-;4:RP04/RP05; 5:RM05; 6:RP06; 7:RP07
       rh_noofcyl : in integer range 128 to 8192 := 1024;             -- for RM06 and RP2G: how many cylinders are available
 
    -- tc controller
       have_tc : in integer range 0 to 1 := 0;
-      tc_sdcard_cs : out std_logic;
-      tc_sdcard_mosi : out std_logic;
-      tc_sdcard_sclk : out std_logic;
-      tc_sdcard_miso : in std_logic := '0';
+      tc_sdcard_req : out sd_req_t;
+      tc_sdcard_rsp : in sd_rsp_t;
       tc_sdcard_debug : out std_logic_vector(3 downto 0);
 
 -- xu esp32/enc424j600 controller interface
@@ -399,7 +393,9 @@ type npr_states is (
    npr_idle,
    npr_rl0,
    npr_rk0,
-   npr_rh0
+   npr_rh0,
+   npr_tc0,
+   npr_xu0
 );
 signal npr_state : npr_states := npr_idle;
 
@@ -412,6 +408,8 @@ signal br6_state : br6_states := br6_idle;
 
 type br5_states is (
    br5_rh0,
+   br5_tc0,
+   br5_xu0,
    br5_rl0,
    br5_rk0,
    br5_dr11c0,
@@ -536,6 +534,18 @@ signal rh0_dato : std_logic_vector(15 downto 0);
 signal rh0_control_dati : std_logic;
 signal rh0_control_dato : std_logic;
 
+signal tc0_bg : std_logic;
+signal tc0_br : std_logic;
+signal tc0_ivec : std_logic_vector(8 downto 0);
+signal tc0_addr_match : std_logic;
+signal tc0_dati : std_logic_vector(15 downto 0);
+signal tc0_npr : std_logic;
+signal tc0_npg : std_logic;
+signal tc0_addr : std_logic_vector(17 downto 0);
+signal tc0_dato : std_logic_vector(15 downto 0);
+signal tc0_control_dati : std_logic;
+signal tc0_control_dato : std_logic;
+
 signal rh70_bus_master_addr : std_logic_vector(21 downto 0);
 signal rh70_bus_master_dati : std_logic_vector(15 downto 0);
 signal rh70_bus_master_dato : std_logic_vector(15 downto 0);
@@ -544,6 +554,20 @@ signal rh70_bus_master_control_dato : std_logic;
 signal rh70_bus_master_nxm : std_logic;
 
 signal have_rh70 : integer range 0 to 1;
+
+signal xu0_bg : std_logic;
+signal xu0_br : std_logic;
+signal xu0_ivec : std_logic_vector(8 downto 0);
+
+signal xu0_addr_match : std_logic;
+signal xu0_dati : std_logic_vector(15 downto 0);
+signal xu0_npr : std_logic;
+signal xu0_npg : std_logic;
+
+signal xu0_addr : std_logic_vector(17 downto 0);
+signal xu0_dato : std_logic_vector(15 downto 0);
+signal xu0_control_dati : std_logic;
+signal xu0_control_dato : std_logic;
 
 signal dr11c0_addr_match : std_logic;
 signal dr11c0_dati : std_logic_vector(15 downto 0);
@@ -1246,15 +1270,13 @@ begin
       bus_master_control_dato => rl0_control_dato,
       bus_master_nxm => busmaster_nxmabort,
 
-      sdcard_cs => rl_sdcard_cs,
-      sdcard_mosi => rl_sdcard_mosi,
-      sdcard_sclk => rl_sdcard_sclk,
-      sdcard_miso => rl_sdcard_miso,
+      sdcard_req => rl_sdcard_req,
+      sdcard_rsp => rl_sdcard_rsp,
+      sdcard_clk => sdcard_clk,
       sdcard_debug => rl_sdcard_debug,
 
       have_rl => have_rl,
       reset => cpu_init,
-      clk50mhz => clk50mhz,
       nclk => nclk,
       clk => clk
    );
@@ -1285,16 +1307,14 @@ begin
       bus_master_control_dato => rk0_control_dato,
       bus_master_nxm => busmaster_nxmabort,
 
-      sdcard_cs => rk_sdcard_cs,
-      sdcard_mosi => rk_sdcard_mosi,
-      sdcard_sclk => rk_sdcard_sclk,
-      sdcard_miso => rk_sdcard_miso,
+      sdcard_req => rk_sdcard_req,
+      sdcard_rsp => rk_sdcard_rsp,
+      sdcard_clk => sdcard_clk,
       sdcard_debug => rk_sdcard_debug,
 
       have_rk => have_rk,
       have_rk_num => have_rk_num,
       reset => cpu_init,
-      clk50mhz => clk50mhz,
       nclk => nclk,
       clk => clk
    );
@@ -1333,10 +1353,9 @@ begin
       rh70_bus_master_control_dato => rh70_bus_master_control_dato,
       rh70_bus_master_nxm => rh70_bus_master_nxm,
 
-      sdcard_cs => rh_sdcard_cs,
-      sdcard_mosi => rh_sdcard_mosi,
-      sdcard_sclk => rh_sdcard_sclk,
-      sdcard_miso => rh_sdcard_miso,
+      sdcard_req => rh_sdcard_req,
+      sdcard_rsp => rh_sdcard_rsp,
+      sdcard_clk => sdcard_clk,
       sdcard_debug => rh_sdcard_debug,
 
       rh_type => rh_type,
@@ -1345,9 +1364,94 @@ begin
       have_rh => have_rh,
       have_rh70 => have_rh70,
       reset => cpu_init,
-      clk50mhz => clk50mhz,
       nclk => nclk,
       clk => clk
+   );
+
+   tc0: entity work.tc11 port map(
+      base_addr => o"177340",
+      ivec => o"260",
+
+      br => tc0_br,
+      bg => tc0_bg,
+      int_vector => tc0_ivec,
+
+      npr => tc0_npr,
+      npg => tc0_npg,
+
+      bus_addr_match => tc0_addr_match,
+      bus_addr => unibus_addr,
+      bus_dati => tc0_dati,
+      bus_dato => unibus_dato,
+      bus_control_dati => unibus_control_dati,
+      bus_control_dato => unibus_control_dato,
+      bus_control_datob => unibus_control_datob,
+
+      bus_master_addr => tc0_addr,
+      bus_master_dati => unibus_busmaster_dati,
+      bus_master_dato => tc0_dato,
+      bus_master_control_dati => tc0_control_dati,
+      bus_master_control_dato => tc0_control_dato,
+      bus_master_nxm => busmaster_nxmabort,
+
+      sdcard_req => tc_sdcard_req,
+      sdcard_rsp => tc_sdcard_rsp,
+      sdcard_clk => sdcard_clk,
+
+      sdcard_debug => tc_sdcard_debug,
+
+      have_tc => have_tc,
+      reset => cpu_init,
+      nclk => nclk,
+      clk => clk
+   );
+
+   xu0: entity work.xu port map(
+      base_addr => o"774510",
+      ivec => o"120",
+
+      br => xu0_br,
+      bg => xu0_bg,
+      int_vector => xu0_ivec,
+
+      npr => xu0_npr,
+      npg => xu0_npg,
+
+      bus_addr_match => xu0_addr_match,
+      bus_addr => unibus_addr,
+      bus_dati => xu0_dati,
+      bus_dato => unibus_dato,
+      bus_control_dati => unibus_control_dati,
+      bus_control_dato => unibus_control_dato,
+      bus_control_datob => unibus_control_datob,
+
+      bus_master_addr => xu0_addr,
+      bus_master_dati => unibus_busmaster_dati,
+      bus_master_dato => xu0_dato,
+      bus_master_control_dati => xu0_control_dati,
+      bus_master_control_dato => xu0_control_dato,
+      bus_master_nxm => busmaster_nxmabort,
+
+-- ethernet, enc424j600 controller interface
+      xu_cs => xu_cs,
+      xu_mosi => xu_mosi,
+      xu_sclk => xu_sclk,
+      xu_miso => xu_miso,
+      xu_srdy => xu_srdy,
+
+-- flags
+      have_xu => have_xu,
+      have_xu_enc28_mac_6 => have_xu_enc28_mac_6,
+      have_xu_enc28_force_fdx => have_xu_enc28_force_fdx,
+      have_xu_enc28_force_hdx => have_xu_enc28_force_hdx,
+
+-- clock & reset
+      tx => xu_debug_tx,
+      cpuclk => clk,
+      nclk => nclk,
+      lookup_clk => lookup_clk,
+      clk50mhz => clk50mhz,
+      reset => reset
    );
 
    dr11c0_ivec1 <= o"300" when have_kl11 = 1
@@ -1980,6 +2084,8 @@ begin
       else rl0_dati when rl0_addr_match = '1'
       else rk0_dati when rk0_addr_match = '1'
       else rh0_dati when rh0_addr_match = '1'
+      else tc0_dati when tc0_addr_match = '1'
+      else xu0_dati when xu0_addr_match = '1'
       else dr11c0_dati when dr11c0_addr_match = '1'
       else mncad0_dati when mncad0_addr_match = '1'
       else mnckw0_dati when mnckw0_addr_match = '1'
@@ -2016,6 +2122,8 @@ begin
       or rl0_addr_match = '1'
       or rk0_addr_match = '1'
       or rh0_addr_match = '1'
+      or tc0_addr_match = '1'
+      or xu0_addr_match = '1'
       or dr11c0_addr_match = '1'
       or mncad0_addr_match = '1'
       or mnckw0_addr_match = '1'
@@ -2068,26 +2176,38 @@ begin
    unibus_busmaster_addr <= rl0_addr when rl0_npg = '1'
       else rk0_addr when rk0_npg = '1'
       else rh0_addr when rh0_npg = '1' and have_rh70 = 0
+      else tc0_addr when tc0_npg = '1'
+      else xu0_addr when xu0_npg = '1'
       else "000000000000000000";
    unibus_busmaster_dato <= rl0_dato when rl0_npg = '1'
       else rk0_dato when rk0_npg = '1'
       else rh0_dato when rh0_npg = '1' and have_rh70 = 0
+      else tc0_dato when tc0_npg = '1'
+      else xu0_dato when xu0_npg = '1'
       else "0000000000000000";
    unibus_busmaster_control_dati <= rl0_control_dati when rl0_npg = '1'
       else rk0_control_dati when rk0_npg = '1'
       else rh0_control_dati when rh0_npg = '1' and have_rh70 = 0
+      else tc0_control_dati when tc0_npg = '1'
+      else xu0_control_dati when xu0_npg = '1'
       else '0';
    unibus_busmaster_control_dato <= rl0_control_dato when rl0_npg = '1'
       else rk0_control_dato when rk0_npg = '1'
       else rh0_control_dato when rh0_npg = '1' and have_rh70 = 0
+      else tc0_control_dato when tc0_npg = '1'
+      else xu0_control_dato when xu0_npg = '1'
       else '0';
    unibus_busmaster_control_datob <= '0' when rl0_npg = '1'
       else '0' when rk0_npg = '1'
       else '0' when rh0_npg = '1' and have_rh70 = 0
+      else '0' when tc0_npg = '1'
+      else '0' when xu0_npg = '1'
       else '0';
    unibus_busmaster_control_npg <= '1' when rl0_npg = '1'
       else '1' when rk0_npg = '1'
       else '1' when rh0_npg = '1' and have_rh70 = 0
+      else '1' when tc0_npg = '1'
+      else '1' when xu0_npg = '1'
       else '0';
 
 -- regular memory interface and rh70 interface to it
@@ -2127,6 +2247,8 @@ begin
                   rl0_npg <= '0';
                   rk0_npg <= '0';
                   rh0_npg <= '0';
+                  tc0_npg <= '0';
+                  xu0_npg <= '0';
 
                   if rl0_npr = '1' then
                      npr_state <=   npr_rl0;
@@ -2134,6 +2256,10 @@ begin
                      npr_state <= npr_rk0;
                   elsif rh0_npr = '1' then
                      npr_state <= npr_rh0;
+                  elsif tc0_npr = '1' then
+                     npr_state <= npr_tc0;
+                  elsif xu0_npr = '1' then
+                     npr_state <= npr_xu0;
                   end if;
 
                when npr_rl0 =>
@@ -2161,6 +2287,24 @@ begin
                      rh0_npg <= '0';
                   else
                      rh0_npg <= cpu_npg;
+                  end if;
+
+               when npr_tc0 =>
+                  cpu_npr <= '1';
+                  if tc0_npr = '0' then
+                     npr_state <= npr_idle;
+                     tc0_npg <= '0';
+                  else
+                     tc0_npg <= cpu_npg;
+                  end if;
+
+               when npr_xu0 =>
+                  cpu_npr <= '1';
+                  if xu0_npr = '0' then
+                     npr_state <= npr_idle;
+                     xu0_npg <= '0';
+                  else
+                     xu0_npg <= cpu_npg;
                   end if;
 
                when others =>
@@ -2207,9 +2351,15 @@ begin
                   if rh0_br = '1' then
                      br5_state <= br5_rh0;
                      cpu_br5 <= rh0_br;
+                  elsif xu0_br = '1' then
+                     br5_state <= br5_xu0;
+                     cpu_br5 <= xu0_br;
                   elsif rl0_br = '1' then
                      br5_state <= br5_rl0;
                      cpu_br5 <= rl0_br;
+                  elsif tc0_br = '1' then
+                     br5_state <= br5_tc0;
+                     cpu_br5 <= tc0_br;
                   elsif rk0_br = '1' then
                      br5_state <= br5_rk0;
                      cpu_br5 <= rk0_br;
@@ -2225,6 +2375,22 @@ begin
                   rh0_bg <= cpu_bg5;
                   cpu_int_vector5 <= rh0_ivec;
                   if rh0_br = '0' and rh0_bg = '0' then
+                     br5_state <= br5_idle;
+                  end if;
+
+               when br5_tc0 =>
+                  cpu_br5 <= tc0_br;
+                  tc0_bg <= cpu_bg5;
+                  cpu_int_vector5 <= tc0_ivec;
+                  if tc0_br = '0' and tc0_bg = '0' then
+                     br5_state <= br5_idle;
+                  end if;
+
+               when br5_xu0 =>
+                  cpu_br5 <= xu0_br;
+                  xu0_bg <= cpu_bg5;
+                  cpu_int_vector5 <= xu0_ivec;
+                  if xu0_br = '0' and xu0_bg = '0' then
                      br5_state <= br5_idle;
                   end if;
 

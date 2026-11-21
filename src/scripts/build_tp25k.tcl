@@ -4,7 +4,8 @@ source scripts/update_xml.tcl
 
 set_device GW5A-LV25MG121NC1/I0 -name GW5A-25A
 
-add_file rtl/sd_card_if.sv
+add_file rtl/sd_bus_pkg.vhd
+add_file rtl/sd_sector_port.vhd
 add_file gowin_dpb/sector_dpram.v
 add_file hdmi/audio_clock_regeneration_packet.sv
 add_file hdmi/audio_info_frame.sv
@@ -77,7 +78,6 @@ add_file rtl/rh11.vhd
 add_file rtl/rk11.vhd
 add_file rtl/rl11.vhd
 add_file rtl/sdram.vhd
-add_file rtl/sdspi.vhd
 add_file rtl/tc11.vhd
 add_file rtl/unibus.vhd
 add_file rtl/vga.vhd
@@ -119,5 +119,6 @@ set_option -bit_compress 1
 set_option -ireg_in_iob 1
 set_option -oreg_in_iob 1
 set_option -ioreg_in_iob 1
+set_option -enable_dsrm 1
 
 run all

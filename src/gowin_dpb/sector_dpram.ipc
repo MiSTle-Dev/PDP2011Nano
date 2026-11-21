@@ -1,9 +1,9 @@
 [General]
-ipc_version=4
 file=sector_dpram
+ipc_version=4
 module=sector_dpram
 target_device=gw2ar18c-000
-type=ram_dpb
+type=dp
 version=1.0
 
 [Config]

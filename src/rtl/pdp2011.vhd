@@ -18,6 +18,7 @@ library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.STD_LOGIC_ARITH.ALL;
 use IEEE.STD_LOGIC_UNSIGNED.ALL;
+use work.sd_bus_pkg.all;
 
 
 package pdp2011 is
@@ -39,6 +40,7 @@ constant have_xu_enc28 : integer := 3;                               -- the alte
 component unibus is
    port(
       lookup_clk : in std_logic;
+      sdcard_clk : in std_logic;
       mmu_ready : out std_logic;
 -- bus interface
       addr : out std_logic_vector(21 downto 0);                      -- physical address driven out to the bus by cpu or busmaster peripherals
@@ -56,37 +58,29 @@ component unibus is
 
 -- rl controller
       have_rl : in integer range 0 to 1 := 0;                        -- enable conditional compilation
-      rl_sdcard_cs : out std_logic;
-      rl_sdcard_mosi : out std_logic;
-      rl_sdcard_sclk : out std_logic;
-      rl_sdcard_miso : in std_logic := '0';
+      rl_sdcard_req : out sd_req_t;
+      rl_sdcard_rsp : in sd_rsp_t := SD_RSP_IDLE;
       rl_sdcard_debug : out std_logic_vector(3 downto 0);            -- debug/blinkenlights
 
 -- rk controller
       have_rk : in integer range 0 to 1 := 0;                        -- enable conditional compilation
       have_rk_num : in integer range 1 to 8 := 8;                    -- active number of drives on the controller; set to < 8 to save core
-      rk_sdcard_cs : out std_logic;
-      rk_sdcard_mosi : out std_logic;
-      rk_sdcard_sclk : out std_logic;
-      rk_sdcard_miso : in std_logic := '0';
+      rk_sdcard_req : out sd_req_t;
+      rk_sdcard_rsp : in sd_rsp_t := SD_RSP_IDLE;
       rk_sdcard_debug : out std_logic_vector(3 downto 0);            -- debug/blinkenlights
 
 -- rh controller
       have_rh : in integer range 0 to 1 := 0;                        -- enable conditional compilation
-      rh_sdcard_cs : out std_logic;
-      rh_sdcard_mosi : out std_logic;
-      rh_sdcard_sclk : out std_logic;
-      rh_sdcard_miso : in std_logic := '0';
+      rh_sdcard_req : out sd_req_t;
+      rh_sdcard_rsp : in sd_rsp_t := SD_RSP_IDLE;
       rh_sdcard_debug : out std_logic_vector(3 downto 0);            -- debug/blinkenlights
       rh_type : in integer range 1 to 7 := 6;                        -- 1:RM06; 2:RP2G; 3:-;4:RP04/RP05; 5:RM05; 6:RP06; 7:RP07
       rh_noofcyl : in integer range 128 to 8192 := 1024;             -- for RM06 and RP2G: how many cylinders are available
 
 -- tc controller
       have_tc : in integer range 0 to 1 := 0;                        -- enable conditional compilation
-      tc_sdcard_cs : out std_logic;
-      tc_sdcard_mosi : out std_logic;
-      tc_sdcard_sclk : out std_logic;
-      tc_sdcard_miso : in std_logic := '0';
+      tc_sdcard_req : out sd_req_t;
+      tc_sdcard_rsp : in sd_rsp_t := SD_RSP_IDLE;
       tc_sdcard_debug : out std_logic_vector(3 downto 0);            -- debug/blinkenlights
 
 -- xu esp32/enc424j600 controller interface
