@@ -386,7 +386,6 @@ begin
 
                      O_sdram_ba <= dram_bank_addr;
 
-                     dram_addr_bit1 <= addr(1);
                   end if;
 
                   -- write, t3-t4
@@ -403,6 +402,7 @@ begin
                   end if;
 
                   dram_fsm <= dram_c9;
+                  dram_addr_bit1 <= addr(1);
 
                cpuclk <= '0';
 

@@ -22,19 +22,18 @@ The original pdp2011 VHDL code is copyright © 2008–2025 [Sytse van Slooten](h
 
 * Configurable as PDP-11/20, 11/34, 11/44, 11/45, 11/70 or 11/94
 * Disk controllers for RK, RL and RH (RM/RP) disks
-* [VT52](https://en.wikipedia.org/wiki/VT52) Terminal interface for an HDMI screen and USB keyboard,
+* [VT52](https://en.wikipedia.org/wiki/VT52) Terminal interface for an HDMI screen and USB keyboard
 * Support for a second terminal via serial interface (TN20k USB-C with M0SDock or PiPico)
 
 ## Limitations
 
-Because of FPGA resource limits there is support for VT52 only. VT100/105 Terminal of the original core is not available.  
+* Because of FPGA resource limits there is support for VT52 terminal only. VT100/105 terminal is not available
 
+## status progress
 
-## work in progress
-
-Disk boot is working from RK, RL and RH controller  
-So far no checks with a diagnostic program like xxdp done  
-many modifications had been needed to fit TN20k  
+* Disk boot from RK, RL and RH controller  
+* So far no checks with a diagnostic program like xxdp done  
+* many modifications had been needed to fit TN20k  
 
 ## feature candidates
 
