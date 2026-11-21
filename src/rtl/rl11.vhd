@@ -18,6 +18,7 @@ library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.STD_LOGIC_ARITH.ALL;
 use IEEE.STD_LOGIC_UNSIGNED.ALL;
+use work.sd_bus_pkg.all;
 
 entity rl11 is
    port(
@@ -46,54 +47,19 @@ entity rl11 is
       bus_master_control_dato : out std_logic;
       bus_master_nxm : in std_logic;
 
-      sdcard_cs : out std_logic;
-      sdcard_mosi : out std_logic;
-      sdcard_sclk : out std_logic;
-      sdcard_miso : in std_logic;
+      sdcard_req : out sd_req_t;
+      sdcard_rsp : in sd_rsp_t;
+      sdcard_clk : in std_logic;
       sdcard_debug : out std_logic_vector(3 downto 0);
 
       have_rl : in integer range 0 to 1;
       reset : in std_logic;
-      clk50mhz : in std_logic;
       nclk : in std_logic;
       clk : in std_logic
    );
 end rl11;
 
 architecture implementation of rl11 is
-
-component sdspi is
-   port(
-      sdcard_cs : out std_logic;
-      sdcard_mosi : out std_logic;
-      sdcard_sclk : out std_logic;
-      sdcard_miso : in std_logic := '0';
-      sdcard_debug : out std_logic_vector(3 downto 0);
-
-      sdcard_addr : in std_logic_vector(23 downto 0);
-
-      sdcard_idle : out std_logic;
-      sdcard_read_start : in std_logic;
-      sdcard_read_ack : in std_logic;
-      sdcard_read_done : out std_logic;
-      sdcard_write_start : in std_logic;
-      sdcard_write_ack : in std_logic;
-      sdcard_write_done : out std_logic;
-      sdcard_error : out std_logic;
-
-      sdcard_xfer_addr : in integer range 0 to 255;
-      sdcard_xfer_read : in std_logic;
-      sdcard_xfer_out : out std_logic_vector(15 downto 0);
-      sdcard_xfer_write : in std_logic;
-      sdcard_xfer_in : in std_logic_vector(15 downto 0);
-
-      enable : in integer range 0 to 1 := 0;
-      controller_clk : in std_logic;
-      reset : in std_logic;
-      clk50mhz : in std_logic
-   );
-end component;
-
 
 -- regular bus interface
 
@@ -156,9 +122,7 @@ signal work_bar : std_logic_vector(17 downto 1);
 
 -- sdspi interface signals
 
-signal sdcard_xfer_clk : std_logic;
 signal sdcard_xfer_addr : integer range 0 to 255;
-signal sdcard_xfer_read : std_logic;
 signal sdcard_xfer_out : std_logic_vector(15 downto 0);
 signal sdcard_xfer_write : std_logic;
 signal sdcard_xfer_in : std_logic_vector(15 downto 0);
@@ -195,11 +159,7 @@ signal busmaster_state : busmaster_state_t := busmaster_idle;
 
 begin
 
-   sd1: sdspi port map(
-      sdcard_cs => sdcard_cs,
-      sdcard_mosi => sdcard_mosi,
-      sdcard_sclk => sdcard_sclk,
-      sdcard_miso => sdcard_miso,
+   sd1: entity work.sd_sector_port port map(
       sdcard_debug => sdcard_debug,
 
       sdcard_addr => sd_addr,
@@ -214,15 +174,16 @@ begin
       sdcard_error => sdcard_error,
 
       sdcard_xfer_addr => sdcard_xfer_addr,
-      sdcard_xfer_read => sdcard_xfer_read,
       sdcard_xfer_out => sdcard_xfer_out,
       sdcard_xfer_in => sdcard_xfer_in,
       sdcard_xfer_write => sdcard_xfer_write,
 
       enable => have_rl,
       controller_clk => clk,
+      sd_clk => sdcard_clk,
       reset => reset,
-      clk50mhz => clk50mhz
+      sd_req => sdcard_req,
+      sd_rsp => sdcard_rsp
    );
 
 
@@ -582,7 +543,6 @@ begin
             sdcard_read_ack <= '0';
             sdcard_write_start <= '0';
             sdcard_write_ack <= '0';
-            sdcard_xfer_read <= '0';
             sdcard_xfer_write <= '0';
             bus_master_control_dati <= '0';
             bus_master_control_dato <= '0';
@@ -622,7 +582,6 @@ begin
                            end if;
 
                            sdcard_xfer_addr <= 0;
-                           sdcard_xfer_read <= '1';
                         end if;
                      end if;
 
@@ -658,7 +617,6 @@ begin
 
                   when busmaster_read_done =>
                      npr <= '0';
-                     sdcard_xfer_read <= '0';
                      sdcard_read_ack <= '1';
                      bus_master_control_dati <= '0';
                      bus_master_control_dato <= '0';

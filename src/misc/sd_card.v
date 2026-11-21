@@ -77,6 +77,9 @@ module sd_card # (
 	output reg [2:0]  rsrc, // source currently being process and for which 
     output			  rbusy, //        busy and done are valid
     output			  rdone,
+    output			  core_busy, // a core request is accepted and not yet finished (rsrc is valid)
+    output			  card_ready, // SD card has been initialized
+    output			  rwr_err,    // the core write that just ended has failed (valid with rdone)
 
     // sector data output interface (sync with clk)
     input [7:0]		  inbyte,
@@ -141,6 +144,9 @@ wire	   done_int;   //                   -"- done -"-
 wire core_in_progress = (core_request == CORE_READING) || (core_request == CORE_WRITING);   
 assign rbusy = core_in_progress?busy_int:1'b0;
 assign rdone = core_in_progress?done_int:1'b0;   
+assign core_busy = core_in_progress;
+assign card_ready = (card_type != 2'd0);
+assign rwr_err = wr_err_int;
    
 // drive outen only if the core reads data for itself
 assign outen = (core_request == CORE_READING)?louten:1'b0;   
@@ -331,7 +337,7 @@ always @(posedge clk, negedge rstn) begin
 			core_request <= CORE_READING;
 
 			lsector <= core_sector; // latch sector to be read
-			rstart_int <= 1'b1;     // request sector to be read from sd card			
+			rstart_int <= 1'b1;     // request sector to be read from sd card
 
 			// latch source currently being processed
 			rsrc <= rstart[0]?3'd0:rstart[1]?3'd1:rstart[2]?3'd2:rstart[3]?3'd3:
@@ -343,7 +349,7 @@ always @(posedge clk, negedge rstn) begin
 			mcu_request <= MCU_READING;
 			
 			lsector <= mcu_sector;  // latch sector to be read
-			rstart_int <= 1'b1;     // request sector to be read from sd card
+			rstart_int <= 1'b1;     // request sector to be read from sd card			
 		 end
 
 		 else if(mcu_request == MCU_READY2WRITE) begin
@@ -436,7 +442,9 @@ always @(posedge clk, negedge rstn) begin
 			// $display("sd_card.v: MCU start byte received: %0d", data_in);
 			
 			byte_cnt <= 4'd0;	    
-			data_out <= { card_stat, card_type, 1'b0, mcu_wr_err };
+			// bit 1: card busy with a request of the core (see SPI.md), the MCU
+			// uses this to wait before it swaps images or reads sectors itself
+			data_out <= { card_stat, card_type, (core_request != CORE_REQ_IDLE), mcu_wr_err };
 		 end else begin
 			// SDC CMD 1: STATUS
 			if(command == 8'd1) begin

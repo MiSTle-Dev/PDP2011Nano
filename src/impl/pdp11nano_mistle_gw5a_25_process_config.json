@@ -19,7 +19,7 @@
     "ERROR_DECTION_ONLY": false,
     "ERROR_INJECTION": false,
     "EXTERNAL_MASTER_CONFIG_CLOCK": false,
-    "Enable_DSRM": false,
+    "Enable_DSRM": true,
     "FORMAT": "binary",
     "FREQUENCY_DIVIDER": "1",
     "Generate_Constraint_File_of_Ports": false,

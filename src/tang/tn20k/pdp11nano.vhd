@@ -2,6 +2,7 @@ library ieee;
 use ieee.std_logic_1164.all;
 use  IEEE.STD_LOGIC_ARITH.all;
 use  IEEE.STD_LOGIC_UNSIGNED.all;
+use work.sd_bus_pkg.all;
 
 entity pdp11nano is
 port(
@@ -96,7 +97,6 @@ signal mcu_sdc_strobe : std_logic;
 signal uart_tx        : std_logic;
 signal system_reset   : std_logic_vector(1 downto 0);
 signal sd_lba         : std_logic_vector(31 downto 0);
-signal sd_busy        : std_logic;
 signal sd_done        : std_logic;
 signal sd_rd_byte_strobe : std_logic;
 signal sd_byte_index  : std_logic_vector(8 downto 0);
@@ -106,20 +106,15 @@ signal sd_img_size    : std_logic_vector(31 downto 0);
 signal sd_img_mounted : std_logic_vector(7 downto 0);
 signal sd_rd          : std_logic_vector(7 downto 0);
 signal sd_wr          : std_logic_vector(7 downto 0);
-type disk_lba_array_t is array (0 to 3) of std_logic_vector(31 downto 0);
-type disk_data_array_t is array (0 to 3) of std_logic_vector(7 downto 0);
-signal disk_sector : disk_lba_array_t;
-signal disk_wr_data : disk_data_array_t;
-signal disk_rd, disk_wr : std_logic_vector(3 downto 0);
-signal disk_ack, disk_buff_wr : std_logic_vector(3 downto 0);
-signal disk_sclk, disk_cs, disk_mosi, disk_miso : std_logic_vector(3 downto 0);
-signal disk_present : std_logic_vector(3 downto 0);
-type disk_state_t is (disk_idle, disk_pending, disk_transfer, disk_drain);
-signal disk_state : disk_state_t := disk_idle;
-signal disk_owner : integer range 0 to 3 := 0;
-signal disk_next : integer range 0 to 3 := 0;
-signal disk_request_write : std_logic := '0';
-signal disk_aborted : std_logic := '0';
+signal sd_rsrc        : std_logic_vector(2 downto 0);
+signal sd_core_busy   : std_logic;
+signal sd_card_ready  : std_logic;
+signal sd_wr_err      : std_logic;
+-- slot 0: RK11, slot 1: RL11, slot 2: RH11, slot 3: TC11
+type sd_req_array_t is array (0 to 3) of sd_req_t;
+type sd_rsp_array_t is array (0 to 3) of sd_rsp_t;
+signal disk_req : sd_req_array_t;
+signal disk_rsp : sd_rsp_array_t;
 signal rk_sddebug : std_logic_vector(3 downto 0);
 signal rl_sddebug : std_logic_vector(3 downto 0);
 signal rh_sddebug : std_logic_vector(3 downto 0);
@@ -127,7 +122,7 @@ signal tc_sddebug : std_logic_vector(3 downto 0);
 signal leds           : std_logic_vector(5 downto 0);
 signal sys_reset       : std_logic := '0';
 signal cpu_reset : std_logic;
-constant powerup_reset_cycles : positive := 4 * 25200000;
+constant powerup_reset_cycles : positive := 2 * 25200000;
 signal powerup_reset_count : natural range 0 to powerup_reset_cycles := 0;
 signal powerup_reset : std_logic := '1';
 signal spi_ext          : std_logic := '0';
@@ -197,7 +192,7 @@ begin
   uart_rx_int <= uart_rx when spi_ext = '1' else '1';
 
   leds_n(5 downto 0) <= not leds(5 downto 0);
-  leds(3 downto 0) <= x"0"; --rh_sddebug;
+  leds(3 downto 0) <= rh_sddebug;
   leds(5 downto 4) <= "00";
 
 pll_inst: entity work.Gowin_rPLL_126mhz
@@ -252,8 +247,8 @@ led_ws2812: entity work.ws2812
   port map
   (
    clk    => clk_pixel,
-   color  => ws2812_color
---   data   => ws2812
+   color  => ws2812_color,
+   data   => ws2812
   );
 
 mcu_spi_inst: entity work.mcu_spi 
@@ -404,9 +399,13 @@ sd_card_inst: entity work.sd_card
     rstart          => sd_rd,
     wstart          => sd_wr, 
     rsector         => sd_lba,
-    rsrc            => open, -- source currently being process and for which 
+    rsrc            => sd_rsrc, -- slot (0..3) of the request currently being processed
 
-    rbusy           => sd_busy,
+    core_busy       => sd_core_busy,
+    card_ready      => sd_card_ready,
+    rwr_err         => sd_wr_err,
+
+    rbusy           => open,
     rdone           => sd_done,           --  done from sd reader acknowledges/clears start
 
     -- sector data output interface (sync with clk)
@@ -416,79 +415,35 @@ sd_card_inst: entity work.sd_card
     outbyte         => sd_rd_data         -- a byte of sector content
 );
 
-process(clk_pixel)
-    variable candidate : integer range 0 to 2;
-begin
-    if rising_edge(clk_pixel) then
-        if pll_lock = '0' or sys_reset = '1' then
-            disk_state <= disk_idle;
-            disk_owner <= 0;
-            disk_next <= 0;
-            disk_request_write <= '0';
-            disk_aborted <= '0';
-            sd_lba <= (others => '0');
-        else
-            -- CPU reset does not reset the companion's outstanding sector I/O.
-            if sys_reset = '1' then
-                disk_aborted <= '1';
-            elsif disk_state = disk_idle then
-                disk_aborted <= '0';
-            end if;
-            case disk_state is
-                when disk_idle =>
-                    if sys_reset = '0' then
-                        for offset in 0 to 2 loop 
-                            candidate := (disk_next + offset) mod 3;
-                            if disk_rd(candidate) = '1' or disk_wr(candidate) = '1' then
-                                disk_owner <= candidate;
-                                disk_next <= (candidate + 1) mod 3;
-                                disk_request_write <= disk_wr(candidate);
-                                sd_lba <= disk_sector(candidate);
-                                disk_state <= disk_pending;
-                                exit;
-                            end if;
-                        end loop;
-                    end if;
-                when disk_pending =>
-                    if sd_done = '1' then
-                        disk_state <= disk_drain;
-                    elsif sd_busy = '1' then
-                        disk_state <= disk_transfer;
-                    end if;
-                when disk_transfer =>
-                    if sd_done = '1' then
-                        disk_state <= disk_drain;
-                    end if;
-                when disk_drain =>
-                    if sd_busy = '0' and sd_done = '0' and
-                       (disk_aborted = '1' or
-                        (disk_rd(disk_owner) = '0' and disk_wr(disk_owner) = '0')) then
-                        disk_state <= disk_idle;
-                    end if;
-            end case;
-        end if;
-    end if;
-end process;
-
 process(all)
+    variable slot_hit : std_logic;
 begin
     sd_rd <= (others => '0');
     sd_wr <= (others => '0');
-    disk_ack <= (others => '0');
-    disk_buff_wr <= (others => '0');
-    if disk_state /= disk_idle then
-        if sys_reset = '0' and disk_aborted = '0' then
-            disk_ack(disk_owner) <= sd_busy;
-            disk_buff_wr(disk_owner) <= sd_rd_byte_strobe;
+    sd_lba <= (others => '0');
+    for i in 0 to 3 loop
+        sd_rd(i) <= disk_req(i).rstart;
+        sd_wr(i) <= disk_req(i).wstart;
+    end loop;
+    for i in 3 downto 0 loop
+        if disk_req(i).rstart = '1' or disk_req(i).wstart = '1' then
+            sd_lba <= disk_req(i).sector;
         end if;
-        if disk_state = disk_pending and sys_reset = '0' then
-            sd_rd(disk_owner) <= not disk_request_write;
-            sd_wr(disk_owner) <= disk_request_write;
-        end if;
-    end if;
-end process;
+    end loop;
 
-sd_wr_data <= disk_wr_data(disk_owner);
+    sd_wr_data <= disk_req(conv_integer(sd_rsrc(1 downto 0))).wbyte;
+
+    for i in 0 to 3 loop
+        slot_hit := '1' when sd_rsrc = conv_std_logic_vector(i, 3) else '0';
+        disk_rsp(i).grant   <= sd_core_busy and slot_hit;
+        disk_rsp(i).done    <= sd_done and slot_hit;
+        disk_rsp(i).wr_err  <= sd_wr_err and slot_hit;
+        disk_rsp(i).outen   <= sd_rd_byte_strobe and slot_hit;
+        disk_rsp(i).outaddr <= sd_byte_index;
+        disk_rsp(i).outbyte <= sd_rd_data;
+        disk_rsp(i).ready   <= sd_card_ready;
+    end loop;
+end process;
 
 powerup_reset_delay : process(clk_pixel, pll_lock)
 begin
@@ -545,44 +500,6 @@ have_rl <= 1 when vsd_sel_rl = '1' else 0;
 have_rh <= 1 when vsd_sel_rh = '1' else 0; 
 have_tc <= 1 when vsd_sel_tc = '1' else 0; 
 
-disk_present <= vsd_sel_tc & vsd_sel_rh & vsd_sel_rl & vsd_sel_rk; -- include TC11 slot as well
-
-disk_interfaces: for i in 0 to 2 generate -- 3 for TC11
-sd_card_inst: entity work.sd_card_if
-generic map (
-      WIDE => '0'
-   )
-port map (
-	clk_sys     => clk_pixel,
-	clk_spi     => clk_pixel_x2,
-	reset       => cpu_reset,
-
-	sdhc        => '1',
-
-	sd_lba      => disk_sector(i),
-	sd_rd       => disk_rd(i),
-	sd_wr       => disk_wr(i),
-	sd_ack      => disk_ack(i),
-	sd_buff_addr=> sd_byte_index,
-	sd_buff_din => disk_wr_data(i),
-	sd_buff_dout=> sd_rd_data,
-	sd_buff_wr  => disk_buff_wr(i),
-    sd_ack_conf => '0',
-
-	sck         => disk_sclk(i),
-	ss          => disk_cs(i) or not disk_present(i),
-	mosi        => disk_mosi(i),
-	miso        => disk_miso(i)
-);
-end generate;
-
--- Slot 3 (TC11) has no sd_card_if in this build: tie off, MISO idle high
-disk_sector(3)  <= (others => '0');
-disk_wr_data(3) <= (others => '0');
-disk_rd(3)      <= '0';
-disk_wr(3)      <= '0';
-disk_miso(3)    <= '1';
-
 modelcode <= 20 when system_cpu = "000" else
              34 when system_cpu = "001" else
              44 when system_cpu = "010" else
@@ -615,8 +532,8 @@ pdp11_inst: entity work.top
     have_rk        => have_rk,
     have_rl        => have_rl,
     have_rh        => have_rh,
---    have_tc        => 0, --have_tc,
---    have_xu        => 0,
+    have_tc        => have_tc,
+    have_xu        => 0,
     rx1            => uart_rx_int, --USB-C BL616 UART PiPico / M0S Dock
     tx1            => uart_tx, --USB-C BL616 UART PiPico / M0S Dock
     rts1           => open,
@@ -626,35 +543,27 @@ pdp11_inst: entity work.top
     panel_col        => open,
     panel_row        => open,
 
-    rk_sdcard_cs   => disk_cs(0),
-    rk_sdcard_mosi => disk_mosi(0),
-    rk_sdcard_sclk => disk_sclk(0),
-    rk_sdcard_miso => disk_miso(0),
+    rk_sdcard_req   => disk_req(0),
+    rk_sdcard_rsp   => disk_rsp(0),
     rk_sdcard_debug => rk_sddebug,
 
-    rl_sdcard_cs   => disk_cs(1),
-    rl_sdcard_mosi => disk_mosi(1),
-    rl_sdcard_sclk => disk_sclk(1),
-    rl_sdcard_miso => disk_miso(1),
+    rl_sdcard_req   => disk_req(1),
+    rl_sdcard_rsp   => disk_rsp(1),
     rl_sdcard_debug => rl_sddebug,
 
-    rh_sdcard_cs   => disk_cs(2),
-    rh_sdcard_mosi => disk_mosi(2),
-    rh_sdcard_sclk => disk_sclk(2),
-    rh_sdcard_miso => disk_miso(2),
+    rh_sdcard_req   => disk_req(2),
+    rh_sdcard_rsp   => disk_rsp(2),
     rh_sdcard_debug => rh_sddebug,
-    rh_type        => rh_type,
+    rh_type         => rh_type,
 
---    tc_sdcard_cs   => disk_cs(3),
---    tc_sdcard_mosi => disk_mosi(3),
---    tc_sdcard_sclk => disk_sclk(3),
---    tc_sdcard_miso => disk_miso(3),
---    tc_sdcard_debug => tc_sddebug,
+    tc_sdcard_req   => disk_req(3),
+    tc_sdcard_rsp   => disk_rsp(3),
+    tc_sdcard_debug => tc_sddebug,
 
---    xu_cs          => open,
---    xu_mosi        => open,
---    xu_sclk        => open,
---    xu_miso        => '1',
+    xu_cs          => open,
+    xu_mosi        => open,
+    xu_sclk        => open,
+    xu_miso        => '1',
 
     dram_addr      => O_sdram_addr,
     dram_dq        => IO_sdram_dq,

@@ -17,6 +17,7 @@ library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.STD_LOGIC_ARITH.ALL;
 use IEEE.STD_LOGIC_UNSIGNED.ALL;
+use work.sd_bus_pkg.all;
 
 entity top is
    generic(
@@ -39,8 +40,8 @@ entity top is
       have_rk        : in integer range 0 to 1;
       have_rl        : in integer range 0 to 1;
       have_rh        : in integer range 0 to 1;
---      have_tc        : in integer range 0 to 1;
---      have_xu        : in integer range 0 to 4;
+      have_tc        : in integer range 0 to 1;
+      have_xu        : in integer range 0 to 4;
 
 		-- VT settings
 		vttype         : in integer;
@@ -57,37 +58,29 @@ entity top is
 		cts1:in std_logic;
 
       -- sd card
-      rk_sdcard_cs   : out std_logic;
-      rk_sdcard_mosi : out std_logic;
-      rk_sdcard_sclk : out std_logic;
-      rk_sdcard_miso : in std_logic;
+      rk_sdcard_req   : out sd_req_t;
+      rk_sdcard_rsp   : in sd_rsp_t := SD_RSP_IDLE;
 		rk_sdcard_debug: out std_logic_vector (3 downto 0);
 
-      rl_sdcard_cs   : out std_logic;
-      rl_sdcard_mosi : out std_logic;
-      rl_sdcard_sclk : out std_logic;
-      rl_sdcard_miso : in std_logic;
+      rl_sdcard_req   : out sd_req_t;
+      rl_sdcard_rsp   : in sd_rsp_t := SD_RSP_IDLE;
 		rl_sdcard_debug: out std_logic_vector (3 downto 0);
 
-      rh_sdcard_cs   : out std_logic;
-      rh_sdcard_mosi : out std_logic;
-      rh_sdcard_sclk : out std_logic;
-      rh_sdcard_miso : in std_logic;
+      rh_sdcard_req   : out sd_req_t;
+      rh_sdcard_rsp   : in sd_rsp_t := SD_RSP_IDLE;
 		rh_sdcard_debug: out std_logic_vector (3 downto 0);
       rh_type        : in integer range 1 to 7 := 6; 
 
---      tc_sdcard_cs   : out std_logic;
---      tc_sdcard_mosi : out std_logic;
---      tc_sdcard_sclk : out std_logic;
---      tc_sdcard_miso : in std_logic;
---      tc_sdcard_debug: out std_logic_vector (3 downto 0);
+      tc_sdcard_req   : out sd_req_t;
+      tc_sdcard_rsp   : in sd_rsp_t := SD_RSP_IDLE;
+      tc_sdcard_debug: out std_logic_vector (3 downto 0);
 
       -- Ethernet
---      xu_cs   : out std_logic;
---      xu_mosi : out std_logic;
---      xu_sclk : out std_logic;
---      xu_miso : in std_logic;
---      xu_debug_tx : out std_logic;
+      xu_cs   : out std_logic;
+      xu_mosi : out std_logic;
+      xu_sclk : out std_logic;
+      xu_miso : in std_logic;
+      xu_debug_tx : out std_logic;
 
       -- pidp11 console
       panel_xled : out std_logic_vector(5 downto 0);
@@ -202,6 +195,7 @@ begin
    port map(
       modelcode => modelcode,  -- 24,45,70,94...
       lookup_clk => clk_50,
+      sdcard_clk => clk_25,
       mmu_ready => mmu_ready,
 
       have_kl11 => 2,
@@ -232,40 +226,32 @@ begin
 --      kl3_force7bit => 0,
 		
       have_rl => have_rl,
-      rl_sdcard_cs    => rl_sdcard_cs,
-      rl_sdcard_miso  => rl_sdcard_miso,
-      rl_sdcard_mosi  => rl_sdcard_mosi,
-      rl_sdcard_sclk  => rl_sdcard_sclk,
+      rl_sdcard_req   => rl_sdcard_req,
+      rl_sdcard_rsp   => rl_sdcard_rsp,
       rl_sdcard_debug => rl_sdcard_debug,
 
 		have_rk => have_rk,
-		rk_sdcard_cs    => rk_sdcard_cs,
-      rk_sdcard_mosi  => rk_sdcard_mosi,
-      rk_sdcard_sclk  => rk_sdcard_sclk,
-      rk_sdcard_miso  => rk_sdcard_miso,
+		rk_sdcard_req   => rk_sdcard_req,
+      rk_sdcard_rsp   => rk_sdcard_rsp,
       rk_sdcard_debug => rk_sdcard_debug,
 
       have_rh => have_rh,
-      rh_sdcard_cs => rh_sdcard_cs,
-      rh_sdcard_miso => rh_sdcard_miso,
-      rh_sdcard_mosi => rh_sdcard_mosi,
-      rh_sdcard_sclk => rh_sdcard_sclk,
+      rh_sdcard_req => rh_sdcard_req,
+      rh_sdcard_rsp => rh_sdcard_rsp,
       rh_sdcard_debug => rh_sdcard_debug,
       rh_type => rh_type,
 
---      have_tc => have_tc,
---      tc_sdcard_cs => tc_sdcard_cs,
---      tc_sdcard_miso => tc_sdcard_miso,
---      tc_sdcard_mosi => tc_sdcard_mosi,
---      tc_sdcard_sclk => tc_sdcard_sclk,
---      tc_sdcard_debug => tc_sdcard_debug,
+      have_tc => have_tc,
+      tc_sdcard_req => tc_sdcard_req,
+      tc_sdcard_rsp => tc_sdcard_rsp,
+      tc_sdcard_debug => tc_sdcard_debug,
 
---      have_xu => have_xu, -- have_xu_esp,
---      xu_cs => xu_cs,
---      xu_mosi => xu_mosi,
---      xu_sclk => xu_sclk,
---      xu_miso => xu_miso,
---      xu_debug_tx => xu_debug_tx,
+      have_xu => have_xu, -- have_xu_esp,
+      xu_cs => xu_cs,
+      xu_mosi => xu_mosi,
+      xu_sclk => xu_sclk,
+      xu_miso => xu_miso,
+      xu_debug_tx => xu_debug_tx,
 
       cons_load => cons_load,
       cons_exa => cons_exa,

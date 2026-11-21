@@ -5,7 +5,8 @@
     <Version>5</Version>
     <Device name="GW5A-25A" pn="GW5A-LV25LQ144C1/I0">gw5a25a-036</Device>
     <FileList>
-        <File path="rtl/sd_card_if.sv" type="file.verilog" enable="1"/>
+        <File path="rtl/sd_bus_pkg.vhd" type="file.vhdl" enable="1"/>
+        <File path="rtl/sd_sector_port.vhd" type="file.vhdl" enable="1"/>
         <File path="gowin_dpb/sector_dpram.v" type="file.verilog" enable="1"/>
         <File path="hdmi/audio_clock_regeneration_packet.sv" type="file.verilog" enable="1"/>
         <File path="hdmi/audio_info_frame.sv" type="file.verilog" enable="1"/>
@@ -78,7 +79,6 @@
         <File path="rtl/rk11.vhd" type="file.vhdl" enable="1"/>
         <File path="rtl/rl11.vhd" type="file.vhdl" enable="1"/>
         <File path="rtl/sdram.vhd" type="file.vhdl" enable="1"/>
-        <File path="rtl/sdspi.vhd" type="file.vhdl" enable="1"/>
         <File path="rtl/tc11.vhd" type="file.vhdl" enable="1"/>
         <File path="rtl/unibus.vhd" type="file.vhdl" enable="1"/>
         <File path="rtl/vga.vhd" type="file.vhdl" enable="1"/>

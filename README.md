@@ -2,7 +2,7 @@
 
 The [**PDP-11**](https://en.wikipedia.org/wiki/PDP-11) is Digital Equipment Corporation's 16-bit minicomputer, launched in 1970. It is one of the most influential minicomputers ever built; early Unix and the C language were developed on it.
 
-PDP2011Nano is a PDP-11 FPGA core for Tang and MiSTle boards, derived from the [pdp2011](https://pdp2011.sytse.net) core. It adds features such as TN20k 32-bit DRAM support, a pipelined MMU and a hardwired [VT52](https://en.wikipedia.org/wiki/VT52) terminal console, which saves resources so the core fits on a Nano 20k FPGA board.
+PDP2011Nano is a PDP-11 FPGA core for Tang and MiSTle boards, derived from the [pdp2011](https://pdp2011.sytse.net) core. It adds features such as TN20k 32-bit DRAM support, a pipelined MMU, modified disk controllers and sdcard interface apart from a hardwired [VT52](https://en.wikipedia.org/wiki/VT52) terminal console, which saves resources so the core fits on a Nano 20k FPGA board.
 
 | Board      | FPGA       |Note|
 | ---        |        -   |-|
@@ -27,13 +27,11 @@ The original pdp2011 VHDL code is copyright © 2008–2025 [Sytse van Slooten](h
 
 ## Limitations
 
-Because of FPGA resource limits, TN20k and TP25k currently support three disk types (RK, RL, RH), and only with the default VT52 console. VT100/105 Terminal of the original core is not currently available and would restrict the amount of supported disk controller.  
-On TN20k, the three-color led is also disabled to save resources.  
+Because of FPGA resource limits there is support for VT52 only. VT100/105 Terminal of the original core is not available.  
+
 
 ## work in progress
 
-Test environment up to now FPGA companion running on M0S dock  (core enabled for onboard BL616 use too)  
-VT52 terminal and Keyboard working  
 Disk boot is working from RK, RL and RH controller  
 So far no checks with a diagnostic program like xxdp done  
 many modifications had been needed to fit TN20k  
