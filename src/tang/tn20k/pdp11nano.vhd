@@ -122,6 +122,9 @@ signal tc_sddebug : std_logic_vector(3 downto 0);
 signal leds           : std_logic_vector(5 downto 0);
 signal sys_reset       : std_logic := '0';
 signal cpu_reset : std_logic;
+signal cpu_reset_async : std_logic;
+signal cpu_reset_s1 : std_logic := '1';
+signal cpu_reset_s2 : std_logic := '1';
 constant powerup_reset_cycles : positive := 2 * 25200000;
 signal powerup_reset_count : natural range 0 to powerup_reset_cycles := 0;
 signal powerup_reset : std_logic := '1';
@@ -166,7 +169,18 @@ component CLKDIV
     );
 end component;
 
+COMPONENT GSR 
+    PORT (
+         GSRI : in std_logic
+    );
+end COMPONENT;
+
 begin
+
+GSR_inst: GSR
+    port map (
+        GSRI => '1'
+    );
 
   bl616_mon_tx <= uart_rx; -- fpga companion console debug output
 
@@ -461,7 +475,18 @@ begin
 end process;
 
 sys_reset <= system_reset(1) or system_reset(0) or not pll_lock;
-cpu_reset <= sys_reset or powerup_reset;
+
+-- 100.8Mhz system clock synchronous reset for the CPU
+cpu_reset_sync : process (clk_pixel_x4, pll_lock)
+begin
+    if pll_lock = '0' then
+        cpu_reset_s1 <= '1';
+        cpu_reset_s2 <= '1';
+    elsif rising_edge(clk_pixel_x4) then
+        cpu_reset_s1 <= sys_reset or powerup_reset;
+        cpu_reset_s2 <= cpu_reset_s1;
+    end if;
+end process;
 
 process (clk_pixel)
 begin
@@ -525,7 +550,7 @@ pdp11_inst: entity work.top
     clk_50         => clk_pixel_x2,-- 50.4 MHz
     clk_100        => clk_pixel_x4,-- 100.8 Mhz
     clk_25         => clk_pixel,   -- 25.2 Mhz
-    reset          => cpu_reset,
+    reset          => cpu_reset_s2,
     vtreset        => not pll_lock,
     modelcode      => modelcode,
     serial_console => system_console,

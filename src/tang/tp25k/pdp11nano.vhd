@@ -118,6 +118,9 @@ signal tc_sddebug : std_logic_vector(3 downto 0);
 signal leds           : std_logic_vector(5 downto 0);
 signal sys_reset       : std_logic := '0';
 signal cpu_reset : std_logic;
+signal cpu_reset_async : std_logic;
+signal cpu_reset_s1 : std_logic := '1';
+signal cpu_reset_s2 : std_logic := '1';
 constant powerup_reset_cycles : positive := 2 * 25200000;
 signal powerup_reset_count : natural range 0 to powerup_reset_cycles := 0;
 signal powerup_reset : std_logic := '1';
@@ -134,8 +137,7 @@ signal modelcode  : integer;
 signal system_cpu : std_logic_vector(2 downto 0);
 signal img_present : std_logic_vector(7 downto 0) := (others => '0');
 signal boot_button_detected : std_logic := '1';
-attribute syn_preserve  : integer;
-attribute syn_preserve of boot_button_detected : signal is 1;
+signal btn_captured : std_logic := '0';
 signal vga_fb     : std_logic;
 signal vga_ht     : std_logic;
 signal vga_red    : std_logic_vector(7 downto 0);
@@ -163,18 +165,32 @@ component CLKDIV
     );
 end component;
 
+COMPONENT GSR 
+    PORT (
+         GSRI : in std_logic
+    );
+end COMPONENT;
+
 begin
 
-  process (pll_lock)
+GSR_inst: GSR
+    port map (
+        GSRI => '1'
+    );
+
+  process (clk_in)
   begin
-    if rising_edge(pll_lock) then
-      boot_button_detected <= '1' when user = '1' or reset = '1' else '0';
+    if rising_edge(clk_in) then
+      if btn_captured = '0' and pll_lock = '1' then
+        boot_button_detected <= user or reset;
+        btn_captured <= '1';
+      end if;
     end if;
   end process;
 
 -- enable JTAG if any button has been pressed during boot and also once
 -- the external FPGA Companion has been seen
-  jtagseln <= '1' when (not pll_lock or boot_button_detected or spi_ext or bl616_jtagsel) = '0' else '0';
+  jtagseln <= not (not pll_lock or boot_button_detected or spi_ext or bl616_jtagsel);
 
   process (clk_in)
   begin
@@ -422,7 +438,18 @@ begin
 end process;
 
 sys_reset <= system_reset(1) or system_reset(0) or not pll_lock;
-cpu_reset <= sys_reset or powerup_reset;
+
+-- 25.2 Mhz system clock synchronous reset for the CPU
+cpu_reset_sync : process (clk_pixel, pll_lock)
+begin
+    if pll_lock = '0' then
+        cpu_reset_s1 <= '1';
+        cpu_reset_s2 <= '1';
+    elsif rising_edge(clk_pixel) then
+        cpu_reset_s1 <= sys_reset or powerup_reset;
+        cpu_reset_s2 <= cpu_reset_s1;
+    end if;
+end process;
 
 process (clk_pixel)
 begin
@@ -486,7 +513,7 @@ pdp11_inst: entity work.top
     clk_50         => clk_pixel_x2,-- 50.4 MHz
     clk_100        => clk_pixel_x4,-- 100.8 Mhz
     clk_25         => clk_pixel,   -- 25.2 Mhz
-    reset          => cpu_reset,
+    reset          => cpu_reset_s2,
     vtreset        => not pll_lock,
     modelcode      => modelcode,
     serial_console => system_console,

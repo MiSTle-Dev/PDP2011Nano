@@ -330,7 +330,8 @@ begin
       ext_reset => cons_reset,
       cpureset => cpureset,
       cpuclk => cpuclk,
-      c0 => clk_100
+      c0 => clk_100,
+      clk_25 => clk_25
    );
 
    panel: entity work.paneldriver port map(

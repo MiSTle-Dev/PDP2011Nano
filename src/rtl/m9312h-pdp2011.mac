@@ -32,59 +32,64 @@ L        =bit0                ; lowerbyte multiplier
          .asect
          .=173000
 ;
-;
+; entry points: 173000 is the reset start address
 ;
          jmp   @#boot         ; 173000
          jmp   @#prtoct       ; 173004
 bprtascz:
          jmp   @#prtascz      ; 173010
 ;
-; boot: boot from first controller that exists in the system out of rk,rl,rh
+; boot: try rk, rl, rp, tc in bootdev order and boot from the first that exists
+; r4 - pointer to current bootdev entry (csr, boot message, go routine)
+; a missing controller times out through vector 4 to fail, which moves to the next entry
 ;
-boot:
-         mov   #1000,sp
+boot:    mov   #bootdev,r4
+try:     mov   #1000,sp
          clr   @#6
-         mov   #nork,@#4
-         tst   @#177400
-         mov   #bootrk,r2
-         mov   pc,r1
-         br    bprtascz
-         clr   @#4
-         clr   @#6
-         clr   r0
-         br    rkgo
-;
-nork:
-         mov   #1000,sp
-         clr   @#6
-         mov   #norl,@#4
-         tst   @#174400
-         mov   #bootrl,r2
-         mov   pc,r1
-         br    bprtascz
-         clr   @#4
-         clr   @#6
-         clr   r0
-         br    rlgo
-;
-norl:
-         mov   #1000,sp
-         clr   @#6
-         mov   #norp,@#4
-         tst   @#176700
-         mov   #bootrp,r2
-         mov   pc,r1
-         br    bprtascz
-         clr   @#4
-         clr   @#6
-         clr   r0
-         br    rpgo
-;
-norp:
+         cmp   r4,#bootend    ; all entries tried?
+         bne   1$
          mov   #nodev,r2
          mov   pc,r1
          br    bprtascz
          halt
+
+1$:      mov   #fail,@#4
+         mov   (r4),r5
+         tst   (r5)           ; probe csr, traps if absent
+         mov   2(r4),r2
+         mov   pc,r1
+         br    bprtascz
+         clr   @#4
+         clr   @#6
+         clr   r0
+         jmp   @4(r4)
+
+fail:    add   #6,r4
+         br    try
+
+         .even
+bootdev: .word rkcsr,bootrk,rkgo
+         .word rlcsr,bootrl,rlgo
+         .word rmcsr,bootrp,rpgo
+         .word tccsr,boottc,tcgo
+bootend:
+
+bootrk:  .ascii <15><12>
+         .ascii /boot from rk:/
+         .asciz <15><12>
+bootrl:  .ascii <15><12>
+         .ascii /boot from rl:/
+         .asciz <15><12>
+bootrp:  .ascii <15><12>
+         .ascii /boot from rp:/
+         .asciz <15><12>
+boottc:  .ascii <15><12>
+         .ascii /boot from tc:/
+         .asciz <15><12>
+nodev:   .ascii <15><12>
+         .ascii /boot: no dev/
+         .asciz <15><12>
+         .even
 
 ; --------------------------------------------------
 ; rl
@@ -185,10 +190,17 @@ common:  mov   #-512.,xxwc(r1)   ; set word count
          bpl   3$             ; br if no error
 
          reset                ; reset the world
-         br rkgo              ; and retry
+         jmp   @4(r4)         ; and retry the current device
 
 3$:      bic   #377,(r1)      ; nop command
          clr   pc             ; jump to loaded boot sector
+
+tcgo:    mov   #tccsr+2,r1    ; boot std csr, unit <R0>
+         mov   r0,r3          ; get unit number
+         swab  r3             ; unit number in upper byte
+         mov   r3,(r1)        ; set unit in controller
+         clr   4(r1)          ; bus address 0
+         br    common
 
 
 ; --------------------------------------------------
@@ -273,18 +285,4 @@ prtoct:  mov   #<'0/bit1>,r2  ; ascii 0 right 1b
 ;
 ;
 ;
-bootrk:  .ascii <15><12>
-         .ascii /boot from rk:/
-         .asciz <15><12>
-bootrl:  .ascii <15><12>
-         .ascii /boot from rl:/
-         .asciz <15><12>
-bootrp:  .ascii <15><12>
-         .ascii /boot from rp:/
-         .asciz <15><12>
-nodev:   .ascii <15><12>
-         .ascii /boot: no dev/
-         .asciz <15><12>
-         .even
-
    .end
