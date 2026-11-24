@@ -48,7 +48,8 @@ entity sdram is
       ext_reset : in std_logic;
       cpureset : out std_logic;
       cpuclk : out std_logic;
-      c0 : in std_logic
+      c0 : in std_logic;
+      clk_25 : in std_logic
    );
 end sdram;
 
@@ -105,8 +106,41 @@ type dram_fsm_type is (
    dram_idle
 );
 signal dram_fsm : dram_fsm_type := dram_init;
+signal reset_c0_s1 : std_logic := '1';
+signal reset_c0_s2 : std_logic := '1';
+signal pix_s1 : std_logic := '0';
+signal pix_s2 : std_logic := '0';
+signal phase_cnt : std_logic_vector(1 downto 0) := (others => '0');
+signal phase_locked : std_logic := '0';
+signal fsm_run : std_logic := '0';
+signal fsm_reset : std_logic;
 
 begin
+
+   phase_align : process(c0)
+   begin
+      if rising_edge(c0) then
+         reset_c0_s1 <= reset;
+         reset_c0_s2 <= reset_c0_s1;
+         pix_s1 <= clk_25;
+         pix_s2 <= pix_s1;
+
+         if reset_c0_s2 = '1' then
+            phase_locked <= '0';
+            fsm_run <= '0';
+         else
+            if pix_s1 = '1' and pix_s2 = '0' then
+               phase_cnt <= (others => '0');
+               phase_locked <= '1';
+            else
+               phase_cnt <= phase_cnt + 1;
+            end if;
+            if phase_locked = '1' and phase_cnt = 0 then
+               fsm_run <= '1';
+            end if;
+         end if;
+      end if;
+   end process;
 
    dram_cke <= '1';
 
@@ -115,6 +149,7 @@ begin
       severity failure;
 
    sdram_16bit: if sdram_data_width = 16 generate
+      fsm_reset <= reset;
       dram_row_addr <= "00" & addr(19 downto 9);
       dram_bank_addr <= addr(21 downto 20);
       dram_column_addr <= "00110" & addr(8 downto 1);
@@ -125,6 +160,7 @@ begin
    end generate;
 
    sdram_32bit: if sdram_data_width = 32 generate
+      fsm_reset <= reset_c0_s2;
       dram_row_addr <= "0" & addr(19 downto 10);
       dram_bank_addr <= addr(21 downto 20);
       dram_column_addr <= "110" & addr(9 downto 2);
@@ -152,7 +188,7 @@ begin
    process(c0)
    begin
       if rising_edge(c0) then
-         if reset = '1' then
+         if fsm_reset = '1' or fsm_run = '0' then
             dram_fsm <= dram_init;
             dram_cs_n <= '0';
             dram_ras_n <= '1';
